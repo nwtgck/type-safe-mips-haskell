@@ -1,5 +1,5 @@
 -- Yampaを使って論理回路を作る
--- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）
+-- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
 {-# LANGUAGE Arrows #-}
 
@@ -10,10 +10,18 @@ import           Data.IORef
 import           Data.Maybe
 import           FRP.Yampa
 
+data N0
+data Succ n
+type N1 = Succ N0
+type N2 = Succ N1
+type N3 = Succ N2
+type N4 = Succ N3
+type N5 = Succ N4
+
 -- O, I, X mean 0, 1, x respectively
 data Bit = O | I | X deriving Show
 
-type Bits = [Bit] -- Bits synonim can be changed, so I use the synonim
+data Bits n = Bits [Bit] deriving Show -- Bits synonim can be changed, so I use the synonim
 
 -- Bit OR
 O #| O = O
@@ -64,37 +72,40 @@ fullAdder = proc (a, b, cin) -> do
   returnA -< (c0 #| c1, s1)
 
 -- 4 bits Adder
-add4Bits :: SF (Bits, Bits) Bits
-add4Bits = proc ([a3,a2,a1,a0], [b3,b2,b1,b0]) -> do
+add4Bits :: SF (Bits N4, Bits N4) (Bits N5)
+add4Bits = proc (Bits [a3,a2,a1,a0], Bits [b3,b2,b1,b0]) -> do
   (c0, s0) <- halfAdder -< (a0, b0)
   (c1, s1) <- fullAdder -< (a1, b1, c0)
   (c2, s2) <- fullAdder -< (a2, b2, c1)
   (c3, s3) <- fullAdder -< (a3, b3, c2)
-  returnA -< [c3,s3,s2,s1,s0]
+  returnA -< Bits [c3,s3,s2,s1,s0]
 
 -- Converter for Bits to Int number
-bitsToIntMay :: Bits -> Maybe Int
-bitsToIntMay = foldM (\s b -> case b of
+bitsToIntMay :: Bits a -> Maybe Int
+bitsToIntMay (Bits bs) = foldM (\s b -> case b of
     O -> Just $ s `shift` 1 .|. 0
     I -> Just $ s `shift` 1 .|. 1
     X  -> Nothing
-  ) 0
+  ) 0 bs
 
--- Converter for [Int] to Bits
-toBits :: [Int] -> Bits
-toBits = fmap (\e -> if e == 1 then I else O)
+-- -- Converter for [Int] to Bits
+-- toBits :: [Int] -> Bits a
+-- toBits = Bits $ fmap (\e -> if e == 1 then I else O)
 
+
+-- TODO use range(but not implemented)
+bitsDrop n (Bits bs) = Bits $ drop n bs
 
 -- Test for 4 bits adder
 testForAdd4bits = do
-  prevOut <- newIORef ([] :: Bits)
-  let zero = toBits [0,0,0,0]
-      one  = toBits [0,0,0,1]
+  prevOut <- newIORef (undefined :: Bits N5)
+  let zero = (Bits [O,O,O,O] :: Bits N4)
+      one  = (Bits [O,O,O,I] :: Bits N4)
   reactimate (return (zero, zero))
                (\_ -> do
                  threadDelay 100000
                  out <- readIORef prevOut
-                 return (0.1, (Just $ (drop 1 out, one) )))
+                 return (0.1, (Just $ (bitsDrop 1 out, one) )))
                (\_ out -> print (out, bitsToIntMay out) >> writeIORef prevOut out >> return False)
                (add4Bits)
 
