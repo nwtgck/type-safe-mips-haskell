@@ -1,13 +1,15 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows         #-}
-{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE Arrows             #-}
+{-# LANGUAGE DataKinds          #-}
 -- {-# LANGUAGE DatatypeContexts #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TypeFamilies   #-}
-{-# LANGUAGE TypeOperators  #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
 -- {-# LANGUAGE TypeFamilyDependencies #-}
 
 import           Control.Concurrent
@@ -71,6 +73,14 @@ SN0 #+ b   = b
 (SSucc a) #+ b = SSucc (a #+ b)
 infixl 6 #+
 
+(#-) :: SNat n -> SNat m -> SNat (n - m)
+SN0 #- b               = n0
+a   #- SN0             = a
+(SSucc a) #- (SSucc b) = a #-b
+
+-- (SSucc a) #+ b = SSucc (a #+ b)
+infixl 6 #-
+
 type family a + b :: * where
   N0 + b       = b
   -- Add a N0       = a
@@ -97,41 +107,59 @@ data SNat n :: * where
 -- Bits synonim can be changed, so I use the synonim
 data Bits :: * -> * where
   End :: Bits N0
-  (:-) :: Bit -> Bits n -> Bits (Succ n)
+  (:*) :: Bit -> Bits n -> Bits (Succ n)
 
-infixr 0 :-
+infixr 0 :*
+
+-- class Lengthable n where
+--   lengthBits2 :: Bits n -> SNat n
+--
+-- instance Lengthable N0 where
+--   lengthBits2 _ = n0
+--
+-- instance Nat n => Lengthable (Succ n) where
+--   lengthBits2 (b:*bs) = unsafeCoerce $ n1 #+ (lengthBits2 bs)
+
+
 
 instance Show (Bits n) where
   show End     = ""
-  show (b:-bs) = show b ++ show bs
+  show (b:*bs) = show b ++ show bs
 --
 dropBits :: SNat n -> Bits m -> Bits (m - n)
 dropBits SN0 bits           = bits
-dropBits (SSucc n) (b:-bs)  = dropBits n bs
+dropBits (SSucc n) (b:*bs)  = dropBits n bs
 
 takeBits :: SNat n -> Bits m -> Bits n
 takeBits SN0 bits           = End
-takeBits (SSucc n) (b:-bs)  = b :- (takeBits n bs)
+-- takeBits _   End            = End
+takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
 drop3Bits :: Nat m => m -> Bits n -> Bits (n - N3)
-drop3Bits _ (a:-b:-c:-bs) = bs
+drop3Bits _ (a:*b:*c:*bs) = bs
 
 
 headBits :: Bits (Succ n) -> Bit
-headBits (b:-bs) = b
+headBits (b:*bs) = b
 
 lastBits :: Bits (Succ n) -> Bit
-lastBits (b:-End) = b
-lastBits (_:-bs)  = lastBits (unsafeCoerce bs :: Bits n)
+lastBits (b:*End) = b
+lastBits (_:*bs)  = lastBits (unsafeCoerce bs :: Bits n)
+
+lengthBits :: Bits n -> SNat n
+lengthBits End     = n0
+lengthBits (b:*bs) = n1 #+ lengthBits bs
 
 drop2Bits :: Bits n -> Bits (n - N2)
-drop2Bits (a:-b:-bs) = bs
+drop2Bits (a:*b:*bs) = bs
 
 sub 0 b = 0
 sub a 0 = a
 sub a b = sub (a-1) (b-1)
 
--- range :: SNat n -> SNat m -> Bits l -> Bits (Sub )
+range :: SNat s -> SNat e -> Bits n -> Bits (s - e + N1)
+range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
+  where n = lengthBits bs
 
 snatValue :: SNat n -> String
 snatValue SN0       = "0."
@@ -139,8 +167,8 @@ snatValue (SSucc n) = "1+" ++ snatValue n
 
 main :: IO ()
 main = do
-  let bits1   = I:-I:-O:-I:-End
-      -- (b:-bs) = bits1
+  let bits1   = I:*I:*O:*I:*End
+      -- (b:*bs) = bits1
   print $ headBits  bits1
   print $ drop2Bits bits1
   print $ lastBits  bits1
@@ -150,4 +178,6 @@ main = do
   print $ dropBits n3 bits1
   print $ takeBits n3 bits1
   print $ snatValue $ n3 #+ n1
+  putStrLn $ snatValue $ lengthBits bits1
+  print $ range n2 n0 bits1
   return ()
