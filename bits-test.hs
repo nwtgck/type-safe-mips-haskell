@@ -1,8 +1,8 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows             #-}
-{-# LANGUAGE DataKinds          #-}
+-- {-# LANGUAGE Arrows             #-}
+-- {-# LANGUAGE DataKinds          #-}
 -- {-# LANGUAGE DatatypeContexts #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
@@ -39,11 +39,11 @@ import           Unsafe.Coerce
 -- instance Natural n => Natural (Succ n)
 
 
-data Succ n = Succ n deriving (Eq, Show)
-data N0 = N0 deriving (Eq, Show)
-class (Eq n, Show n) => Nat n
-instance Nat N0
-instance Nat n => Nat (Succ n)
+data Succ n-- = Succ n deriving (Eq, Show)
+data N0-- = N0 deriving (Eq, Show)
+-- class (Eq n, Show n) => Nat n
+-- instance Nat N0
+-- instance Nat n => Nat (Succ n)
 
 type N1 = Succ N0
 type N2 = Succ N1
@@ -154,7 +154,7 @@ takeBits SN0 bits           = End
 takeBits _   End            = End
 takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
-drop3Bits :: Nat m => m -> Bits n -> Bits (n - N3)
+drop3Bits :: m -> Bits n -> Bits (n - N3)
 drop3Bits _ (a:*b:*c:*bs) = bs
 
 
