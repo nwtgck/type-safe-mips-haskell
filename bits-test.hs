@@ -1,12 +1,12 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows         #-}
-{-# LANGUAGE DataKinds      #-}
--- {-# LANGUAGE DatatypeContexts #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TypeFamilies   #-}
+{-# LANGUAGE Arrows           #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE DatatypeContexts #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE KindSignatures   #-}
+{-# LANGUAGE TypeFamilies     #-}
 -- {-# LANGUAGE TypeFamilyDependencies #-}
 
 import           Control.Concurrent
@@ -61,10 +61,20 @@ n5 = SSucc n4
 n6 = SSucc n5
 n7 = SSucc n6
 
+inc :: SNat n -> SNat (Add N1 n)
+inc SN0       = SSucc SN0
+inc (SSucc n) = SSucc $ SSucc n
+
+(#+) :: SNat n -> SNat m -> SNat (Add n m)
+SN0 #+ b   = b
+a #+ SN0 = a
+(SSucc a) #+ b = unsafeCoerce $ SSucc (a #+ b) -- TODO unsafeCoerceをなくす（これなしでは型のエラーが出てしまう）
+infixl 4 #+
+
 type family Add a b :: * where
   Add N0 b       = b
   Add a N0       = a
-  Add (Succ n) b = Succ (Add n b)
+  Add (Succ a) b = Succ (Add a b)
 
 type family Sub a b :: * where
   Sub N0 b               = N0
@@ -80,7 +90,7 @@ instance Show Bit where
   show X = "x"
 
 data SNat n :: * where
-  SN0  :: SNat N0
+  SN0   :: SNat N0
   SSucc :: SNat n ->  SNat (Succ n)
 
 -- Bits synonim can be changed, so I use the synonim
@@ -121,10 +131,11 @@ sub 0 b = 0
 sub a 0 = a
 sub a b = sub (a-1) (b-1)
 
+-- range :: SNat n -> SNat m -> Bits l -> Bits (Sub )
 
-receiveNat :: SNat n -> String
-receiveNat SN0       = "0."
-receiveNat (SSucc n) = "1+" ++ receiveNat n
+snatValue :: SNat n -> String
+snatValue SN0       = "0."
+snatValue (SSucc n) = "1+" ++ snatValue n
 
 main :: IO ()
 main = do
@@ -133,9 +144,10 @@ main = do
   print $ headBits  bits1
   print $ drop2Bits bits1
   print $ lastBits  bits1
-  print $ receiveNat (SN0)
-  print $ receiveNat (SSucc SN0)
-  print $ receiveNat (SSucc $ SSucc SN0)
+  print $ snatValue (SN0)
+  print $ snatValue (SSucc SN0)
+  print $ snatValue (SSucc $ SSucc SN0)
   print $ dropBits n3 bits1
   print $ takeBits n3 bits1
+  print $ snatValue $ n3 #+ n1
   return ()
