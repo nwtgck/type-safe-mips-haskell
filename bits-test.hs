@@ -64,6 +64,19 @@ n5 = SSucc n4
 n6 = SSucc n5
 n7 = SSucc n6
 
+-- data TTrue
+-- data TFalse
+--
+-- type family a < b :: * where
+--   N0       < N0       = TFalse
+--   N0       < (Succ n) = TTrue
+--   (Succ n) < N0       = TFalse
+--   (Succ n) < (Succ m) = n < m
+--
+-- type family If cond t f :: * where
+--   If TTrue  t f = t
+--   If TFalse t f = f
+
 inc :: SNat n -> SNat (N1 + n)
 inc SN0       = SSucc SN0
 inc (SSucc n) = SSucc $ SSucc n
@@ -91,6 +104,11 @@ type family a - b :: * where
   N0 - b               = N0
   a - N0               = a
   (Succ a) - (Succ b)  = a - b
+
+type family Min a b :: * where
+  Min N0 m              = N0
+  Min n N0              = N0
+  Min (Succ n) (Succ m) = Succ(Min n m)
 
 -- O, I, X mean 0, 1, x respectively
 data Bit = O | I | X
@@ -128,11 +146,12 @@ instance Show (Bits n) where
 --
 dropBits :: SNat n -> Bits m -> Bits (m - n)
 dropBits SN0 bits           = bits
-dropBits (SSucc n) (b:*bs)  = dropBits n bs
+dropBits _   End            = End　-- Caustion: N0 - N5 = N0
+dropBits (SSucc n) (_:*bs)  = dropBits n bs
 
-takeBits :: SNat n -> Bits m -> Bits n
+takeBits :: SNat n -> Bits m -> Bits (Min n m)
 takeBits SN0 bits           = End
--- takeBits _   End            = End
+takeBits _   End            = End
 takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
 drop3Bits :: Nat m => m -> Bits n -> Bits (n - N3)
@@ -157,9 +176,13 @@ sub 0 b = 0
 sub a 0 = a
 sub a b = sub (a-1) (b-1)
 
-range :: SNat s -> SNat e -> Bits n -> Bits (s - e + N1)
+range :: SNat s -> SNat e -> Bits n -> Bits ( Min (s - e + N1) (n - (n - N1 - s)) )
 range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
   where n = lengthBits bs
+
+-- range :: SNat s -> SNat e -> Bits n -> Bits ((Min s n) - e + N1)
+-- range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
+--   where n = lengthBits bs
 
 snatValue :: SNat n -> String
 snatValue SN0       = "0."
@@ -179,5 +202,6 @@ main = do
   print $ takeBits n3 bits1
   print $ snatValue $ n3 #+ n1
   putStrLn $ snatValue $ lengthBits bits1
-  print $ range n2 n0 bits1
+  print $ range n2 n1 bits1
+  print $ range n7 n1 bits1
   return ()
