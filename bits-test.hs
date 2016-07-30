@@ -1,12 +1,13 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows           #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE DatatypeContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE KindSignatures   #-}
-{-# LANGUAGE TypeFamilies     #-}
+{-# LANGUAGE Arrows         #-}
+{-# LANGUAGE DataKinds      #-}
+-- {-# LANGUAGE DatatypeContexts #-}
+{-# LANGUAGE GADTs          #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeFamilies   #-}
+{-# LANGUAGE TypeOperators  #-}
 -- {-# LANGUAGE TypeFamilyDependencies #-}
 
 import           Control.Concurrent
@@ -61,20 +62,20 @@ n5 = SSucc n4
 n6 = SSucc n5
 n7 = SSucc n6
 
-inc :: SNat n -> SNat (Add N1 n)
+inc :: SNat n -> SNat (N1 + n)
 inc SN0       = SSucc SN0
 inc (SSucc n) = SSucc $ SSucc n
 
-(#+) :: SNat n -> SNat m -> SNat (Add n m)
+(#+) :: SNat n -> SNat m -> SNat (n + m)
 SN0 #+ b   = b
-a #+ SN0 = a
-(SSucc a) #+ b = unsafeCoerce $ SSucc (a #+ b) -- TODO unsafeCoerceをなくす（これなしでは型のエラーが出てしまう）
-infixl 4 #+
+(SSucc a) #+ b = SSucc (a #+ b)
+infixl 6 #+
 
-type family Add a b :: * where
-  Add N0 b       = b
-  Add a N0       = a
-  Add (Succ a) b = Succ (Add a b)
+type family a + b :: * where
+  N0 + b       = b
+  -- Add a N0       = a
+  (Succ a) + b = Succ (a + b)
+infixl 6 +
 
 type family Sub a b :: * where
   Sub N0 b               = N0
@@ -113,7 +114,6 @@ takeBits SN0 bits           = End
 takeBits (SSucc n) (b:-bs)  = b :- (takeBits n bs)
 
 drop3Bits :: Nat m => m -> Bits n -> Bits (Sub n N3)
-drop3Bits _ (a:-b:-c:-bs) = bs
 drop3Bits _ (a:-b:-c:-bs) = bs
 
 
