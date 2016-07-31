@@ -29,19 +29,30 @@ inv O = I
 inv I = O
 inv X = X
 
+-- -- Bit OR
+-- I #| _ = I
+-- _ #| I = I
+-- O #| O = O
+-- _ #| _ = X
+--
+-- -- Bit AND
+-- O #& _ = O
+-- I #& I = I
+-- I #& _ = O
+-- _ #& _ = X
+
 -- Bit OR
-I #| _ = I
-_ #| I = I
+(#|) :: Bit -> Bit -> Bit
 O #| O = O
-_ #| _ = X
+_ #| _ = I
 
 -- Bit AND
-O #& _ = O
+(#&) :: Bit -> Bit -> Bit
 I #& I = I
-I #& _ = O
-_ #& _ = X
+_ #& _ = O
 
 -- Bit XOR
+(#^) :: Bit -> Bit -> Bit
 I #^ I = O
 O #^ O = O
 X #^ _ = X
@@ -103,14 +114,18 @@ add4Bits = proc (Bits [a3,a2,a1,a0], Bits [b3,b2,b1,b0]) -> do
   returnA -< Bits [c3,s3,s2,s1,s0]
 
 -- RS flip-flop
--- TODO 入力によっては止まってしまう
+-- TODO 最初の出力が(I, I)になってしまう（最初だけなので、大量に流すときは些細なことになると思うが）
+-- TODO 前がresetの時にsetにすると(I, O)となってほしいが(I, I)となる。ハザードなのかもしれない
+-- おそらく同じ信号をある程度（2連続ぐらい）流し続ける必要がありそう
 rsff :: SF (Bit, Bit) (Bit, Bit)
 rsff = proc (s, r) -> do
-  s_ <- invGate -< s
-  r_ <- invGate -< r
+  s_    <- invGate -< s
+  r_    <- invGate -< r
   rec
-    q  <- nandGate -< (s_, q_)
-    q_ <- nandGate -< (r_, q)
+    preQ  <- dHold X -< Event q      -- init q  is X, and holds calculated value q
+    preQ_ <- dHold X -< Event q_     -- init q_ is X, and holds calculated value q_
+    q     <- nandGate -< (s_, preQ_)
+    q_    <- nandGate -< (r_, preQ)
   returnA -< (q, q_)
 
 -- Converter for Bits to Int number
@@ -146,10 +161,12 @@ testForAdd4bits = do
 testForRsff = do
   let reset = (O, I)
       set   = (I, O)
+      hold  = (O, O)
+      tabu  = (I, I)
 
   print $ embed
     (rsff) -- 使いたいSF
-    ((reset), [(0.1, Just e) | e <- [reset, set, set] ])
+    (reset, [(0.1, Just e) | e <- [reset, set, set, hold, set, reset, reset, hold, hold, hold] ])
 
 orTest = do
   print $ I #| undefined -- I
