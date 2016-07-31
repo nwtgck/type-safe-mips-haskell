@@ -8,6 +8,7 @@ import           Control.Monad
 import           Data.Bits          (shift, (.|.))
 import           Data.IORef
 import           Data.Maybe
+import           Debug.Trace
 import           FRP.Yampa
 
 data N0
@@ -23,17 +24,22 @@ data Bit = O | I | X deriving Show
 
 data Bits n = Bits [Bit] deriving Show -- Bits synonim can be changed, so I use the synonim
 
+-- Bit NOT
+inv O = I
+inv I = O
+inv X = X
+
 -- Bit OR
+I #| _ = I
+_ #| I = I
 O #| O = O
-X #| _ = X
-_ #| X = X
-_ #| _ = I
+_ #| _ = X
 
 -- Bit AND
+O #& _ = O
 I #& I = I
-X #& _ = X
-_ #& X = X
-_ #& _ = O
+I #& _ = O
+_ #& _ = X
 
 -- Bit XOR
 I #^ I = O
@@ -57,6 +63,22 @@ xorGate :: SF (Bit, Bit) Bit
 xorGate = proc (i1, i2) -> do
   returnA -< i1 #^ i2
 
+-- NOT gate
+invGate :: SF Bit Bit
+invGate = proc b -> do
+  returnA -< inv b
+
+-- NAND gate
+nandGate :: SF (Bit, Bit) Bit
+nandGate = proc (a, b) -> do
+  ando <- andGate -< (a, b)
+  invGate -< ando
+
+-- Tracer for debugging
+tracer :: Show a => SF a a
+tracer = proc a -> do
+  returnA -< trace ("trace{" ++ show a ++ "}") a
+
 -- Half Adder
 halfAdder :: SF (Bit, Bit) (Bit, Bit)
 halfAdder = proc (a, b) -> do
@@ -79,6 +101,17 @@ add4Bits = proc (Bits [a3,a2,a1,a0], Bits [b3,b2,b1,b0]) -> do
   (c2, s2) <- fullAdder -< (a2, b2, c1)
   (c3, s3) <- fullAdder -< (a3, b3, c2)
   returnA -< Bits [c3,s3,s2,s1,s0]
+
+-- RS flip-flop
+-- TODO 入力によっては止まってしまう
+rsff :: SF (Bit, Bit) (Bit, Bit)
+rsff = proc (s, r) -> do
+  s_ <- invGate -< s
+  r_ <- invGate -< r
+  rec
+    q  <- nandGate -< (s_, q_)
+    q_ <- nandGate -< (r_, q)
+  returnA -< (q, q_)
 
 -- Converter for Bits to Int number
 bitsToIntMay :: Bits a -> Maybe Int
@@ -109,5 +142,18 @@ testForAdd4bits = do
                (\_ out -> print (out, bitsToIntMay out) >> writeIORef prevOut out >> return False)
                (add4Bits)
 
+-- Test for RS flip-flop
+testForRsff = do
+  let reset = (O, I)
+      set   = (I, O)
+
+  print $ embed
+    (rsff) -- 使いたいSF
+    ((reset), [(0.1, Just e) | e <- [reset, set, set] ])
+
+orTest = do
+  print $ I #| undefined -- I
+  print $ X #| I         -- I
+
 main :: IO ()
-main = testForAdd4bits
+main = testForRsff
