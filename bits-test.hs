@@ -18,6 +18,7 @@ import           Data.Bits          (shift, (.|.))
 import           Data.IORef
 import           Data.Maybe
 -- import           FRP.Yampa
+import           Data.Type.Equality
 import           Unsafe.Coerce
 
 -- data N0 = N0 deriving Show
