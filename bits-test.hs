@@ -1,24 +1,23 @@
--- Yampaを使って論理回路を作る
--- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
+-- Yampaを使って論理回路を作るためのBitsの実験
 
 -- {-# LANGUAGE Arrows             #-}
 -- {-# LANGUAGE DataKinds          #-}
 -- {-# LANGUAGE DatatypeContexts #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies       #-}
-{-# LANGUAGE TypeOperators      #-}
+-- {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs         #-}
+-- {-# LANGUAGE KindSignatures     #-}
+-- {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies  #-}
+{-# LANGUAGE TypeOperators #-}
 -- {-# LANGUAGE TypeFamilyDependencies #-}
 
-import           Control.Concurrent
-import           Control.Monad
-import           Data.Bits          (shift, (.|.))
-import           Data.IORef
-import           Data.Maybe
+-- import           Control.Concurrent
+-- import           Control.Monad
+-- import           Data.Bits          (shift, (.|.))
+-- import           Data.IORef
+-- import           Data.Maybe
 -- import           FRP.Yampa
-import           Data.Type.Equality
+-- import           Data.Type.Equality
 import           Unsafe.Coerce
 
 -- data N0 = N0 deriving Show
@@ -164,7 +163,7 @@ headBits (b:*bs) = b
 
 lastBits :: Bits (Succ n) -> Bit
 lastBits (b:*End) = b
-lastBits (_:*bs)  = lastBits (unsafeCoerce bs :: Bits n)
+lastBits (_:*bs)  = lastBits . unsafeCoerce $ bs -- TODO unsafeCoerceを取り除く
 
 lengthBits :: Bits n -> SNat n
 lengthBits End     = n0
