@@ -43,6 +43,7 @@ inv X = X
 
 -- Bit OR
 (#|) :: Bit -> Bit -> Bit
+I #| _ = I
 O #| O = O
 _ #| _ = I
 
@@ -84,6 +85,12 @@ nandGate :: SF (Bit, Bit) Bit
 nandGate = proc (a, b) -> do
   ando <- andGate -< (a, b)
   invGate -< ando
+
+-- NOR gate
+norGate :: SF (Bit, Bit) Bit
+norGate = proc (a, b) -> do
+  oro <- orGate -< (a, b)
+  invGate -< oro
 
 -- Tracer for debugging
 tracer :: Show a => SF a a
@@ -128,6 +135,16 @@ rsff = proc (s, r) -> do
     q_    <- nandGate -< (r_, preQ)
   returnA -< (q, q_)
 
+-- -- RS Flip-Flop -- NOR Base
+-- rsff :: SF (Bit, Bit) (Bit, Bit, (Bit, Bit))
+-- rsff = proc (s, r) -> do
+--   rec
+--     preQ  <- dHold O -< Event q
+--     preQ_ <- dHold I -< Event q_
+--     q  <- norGate -< (s, preQ_)
+--     q_ <- norGate -< (r, preQ)
+--   returnA -< (q, q_, (preQ, preQ_))
+
 -- Converter for Bits to Int number
 bitsToIntMay :: Bits a -> Maybe Int
 bitsToIntMay (Bits bs) = foldM (\s b -> case b of
@@ -163,10 +180,14 @@ testForRsff = do
       set   = (I, O)
       hold  = (O, O)
       tabu  = (I, I)
+  -- let set   = (O, I)
+  --     reset = (I, O)
+  --     hold  = (O, O)
+  --     tabu  = (I, I)
 
   print $ embed
     (rsff) -- 使いたいSF
-    (reset, [(0.1, Just e) | e <- [reset, set, set, hold, set, reset, reset, hold, hold, hold] ])
+    (reset, [(0.1, Just e) | e <- [reset, hold, set, set]])--, set, hold, set, reset, reset, hold, hold, hold] ])
 
 orTest = do
   print $ I #| undefined -- I
