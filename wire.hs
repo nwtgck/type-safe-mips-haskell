@@ -5,6 +5,7 @@
 {-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns  #-}
 
 import           Control.Concurrent
 import           Control.Monad
@@ -99,6 +100,23 @@ takeBits SN0 bits           = End
 takeBits _   End            = End
 takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
+-- fold left for Bits
+foldlBits :: (a -> Bit -> a) -> a -> Bits n -> a
+foldlBits op zero End     = zero
+foldlBits op zero (x:*xs) = foldlBits op (op zero x) xs
+
+-- fold right for Bits
+foldrBits :: (Bit -> a -> a) -> a -> Bits n -> a
+foldrBits op zero End     = zero
+foldrBits op zero (x:*xs) = op x (foldrBits op zero xs)
+
+-- fold left Maybe for Bits
+foldlMaybeBits :: (a -> Bit -> Maybe a) -> a -> Bits n -> Maybe a
+foldlMaybeBits op zero End     = Just zero
+foldlMaybeBits op zero (x:*xs) = do
+  a <- op zero x
+  foldlMaybeBits op a xs
+
 lengthBits :: Bits n -> SNat n
 lengthBits End     = n0
 lengthBits (b:*bs) = n1 #+ lengthBits bs
@@ -106,6 +124,11 @@ lengthBits (b:*bs) = n1 #+ lengthBits bs
 range :: SNat s -> SNat e -> Bits n -> Bits ( Min (s - e + N1) (n - (n - N1 - s)) )
 range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
   where n = lengthBits bs
+
+-- Convert Bits into [Bit]
+bitsToList :: Bits n -> [Bit]
+bitsToList End     = []
+bitsToList (x:*xs) = x : bitsToList xs
 
 -- -- Bit OR
 -- I #| _ = I
@@ -191,7 +214,9 @@ fullAdder = proc (a, b, cin) -> do
 
 -- 4 bits Adder
 add4Bits :: SF (Bits N4, Bits N4) (Bits N5)
-add4Bits = proc (a3:*a2:*a1:*a0:*End, b3:*b2:*b1:*b0:*End) -> do
+-- 残念ながら、procとGATDsを両方使った状態でパターンマッチできない（Proc patterns cannot use existential or GADT data constructors）
+-- add4Bits = proc (a3:*a2:*a1:*a0:*End, b3:*b2:*b1:*b0:*End) -> do
+add4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do -- ViewPatternを使って上記の問題をしのぐ。これではビット数でのパターンマッチエラーをコンパイル時に防げない。残念
   (c0, s0) <- halfAdder -< (a0, b0)
   (c1, s1) <- fullAdder -< (a1, b1, c0)
   (c2, s2) <- fullAdder -< (a2, b2, c1)
@@ -224,11 +249,11 @@ rsff = proc (s, r) -> do
 --   returnA -< (q, q_, (preQ, preQ_))
 
 -- Converter for Bits to Int number
-bitsToIntMay :: Bits a -> Maybe Int
-bitsToIntMay (Bits bs) = foldM (\s b -> case b of
+bitsToIntMaybe :: Bits a -> Maybe Int
+bitsToIntMaybe bs = foldlMaybeBits (\s b -> case b of
     O -> Just $ s `shift` 1 .|. 0
     I -> Just $ s `shift` 1 .|. 1
-    X  -> Nothing
+    X -> Nothing
   ) 0 bs
 
 -- -- Converter for [Int] to Bits
@@ -276,8 +301,8 @@ testForAdd4bits = do
                (\_ -> do
                  threadDelay 100000
                  out <- readIORef prevOut
-                 return (0.1, (Just $ (dropBits 1 out, one) )))
-               (\_ out -> print (out, bitsToIntMay out) >> writeIORef prevOut out >> return False)
+                 return (0.1, (Just $ (dropBits n1 out, one) )))
+               (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
                (add4Bits)
 
 -- Test for 4 bits adder and Memory
@@ -287,13 +312,13 @@ testForAdd4bitsAndMem = do
      mainSF :: SF Bit (Bits N4)
      mainSF = proc writeFlag -> do
       rec
-        memData <- memTest -< (dropBits 1 added, writeFlag)
+        memData <- memTest -< (dropBits n1 added, writeFlag)
         added   <- add4Bits -< (memData, one)
-      returnA -< dropBits 1 added
+      returnA -< dropBits n1 added
 
  reactimate (return O)
             (\_ -> threadDelay 100000 >> return (0.1, Just I))
-            (\_ out -> print (out, bitsToIntMay out) >> return False)
+            (\_ out -> print (out, bitsToIntMaybe out) >> return False)
             (mainSF)
 
 -- Test for RS flip-flop
