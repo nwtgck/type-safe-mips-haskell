@@ -1,7 +1,10 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE Arrows        #-}
+{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE TypeFamilies  #-}
+{-# LANGUAGE TypeOperators #-}
 
 import           Control.Concurrent
 import           Control.Monad
@@ -20,15 +23,89 @@ type N3 = Succ N2
 type N4 = Succ N3
 type N5 = Succ N4
 
--- O, I, X mean 0, 1, x respectively
-data Bit = O | I | X deriving (Show, Eq)
+-- Singleton for N0 and Succ n
+data SNat n :: * where
+  SN0   :: SNat N0
+  SSucc :: SNat n ->  SNat (Succ n)
 
-data Bits n = Bits [Bit] deriving Show -- Bits synonim can be changed, so I use the synonim
+n0 = SN0
+n1 = SSucc n0
+n2 = SSucc n1
+n3 = SSucc n2
+n4 = SSucc n3
+n5 = SSucc n4
+n6 = SSucc n5
+n7 = SSucc n6
+
+(#+) :: SNat n -> SNat m -> SNat (n + m)
+SN0 #+ b   = b
+(SSucc a) #+ b = SSucc (a #+ b)
+infixl 6 #+
+
+(#-) :: SNat n -> SNat m -> SNat (n - m)
+SN0 #- b               = n0
+a   #- SN0             = a
+(SSucc a) #- (SSucc b) = a #-b
+
+-- (SSucc a) #+ b = SSucc (a #+ b)
+infixl 6 #-
+
+type family a + b :: * where
+  N0 + b       = b
+  -- Add a N0       = a
+  (Succ a) + b = Succ (a + b)
+infixl 6 +
+
+type family a - b :: * where
+  N0 - b               = N0
+  a - N0               = a
+  (Succ a) - (Succ b)  = a - b
+
+type family Min a b :: * where
+  Min N0 m              = N0
+  Min n N0              = N0
+  Min (Succ n) (Succ m) = Succ(Min n m)
+
+-- O, I, X mean 0, 1, x respectively
+data Bit = O | I | X deriving Eq
+instance Show Bit where
+  show O = "0"
+  show I = "1"
+  show X = "x"
 
 -- Bit NOT
 inv O = I
 inv I = O
 inv X = X
+
+-- Bits synonim can be changed, so I use the synonim
+data Bits :: * -> * where
+  End :: Bits N0
+  (:*) :: Bit -> Bits n -> Bits (Succ n)
+
+infixr 0 :*
+
+instance Show (Bits n) where
+  show End     = ""
+  show (b:*bs) = show b ++ show bs
+
+dropBits :: SNat n -> Bits m -> Bits (m - n)
+dropBits SN0 bits           = bits
+dropBits _   End            = End　-- Caustion: N0 - N5 = N0
+dropBits (SSucc n) (_:*bs)  = dropBits n bs
+
+takeBits :: SNat n -> Bits m -> Bits (Min n m)
+takeBits SN0 bits           = End
+takeBits _   End            = End
+takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
+
+lengthBits :: Bits n -> SNat n
+lengthBits End     = n0
+lengthBits (b:*bs) = n1 #+ lengthBits bs
+
+range :: SNat s -> SNat e -> Bits n -> Bits ( Min (s - e + N1) (n - (n - N1 - s)) )
+range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
+  where n = lengthBits bs
 
 -- -- Bit OR
 -- I #| _ = I
@@ -114,12 +191,12 @@ fullAdder = proc (a, b, cin) -> do
 
 -- 4 bits Adder
 add4Bits :: SF (Bits N4, Bits N4) (Bits N5)
-add4Bits = proc (Bits [a3,a2,a1,a0], Bits [b3,b2,b1,b0]) -> do
+add4Bits = proc (a3:*a2:*a1:*a0:*End, b3:*b2:*b1:*b0:*End) -> do
   (c0, s0) <- halfAdder -< (a0, b0)
   (c1, s1) <- fullAdder -< (a1, b1, c0)
   (c2, s2) <- fullAdder -< (a2, b2, c1)
   (c3, s3) <- fullAdder -< (a3, b3, c2)
-  returnA -< Bits [c3,s3,s2,s1,s0]
+  returnA -< c3:*s3:*s2:*s1:*s0:*End
 
 -- RS flip-flop
 -- TODO 最初の出力が(I, I)になってしまう（最初だけなので、大量に流すときは些細なことになると思うが）
@@ -159,16 +236,16 @@ bitsToIntMay (Bits bs) = foldM (\s b -> case b of
 -- toBits = Bits $ fmap (\e -> if e == 1 then I else O)
 
 
--- TODO use range(but not implemented)
-bitsDrop n (Bits bs) = Bits $ drop n bs
+-- -- TODO use range(but not implemented)
+-- bitsDrop n (Bits bs) = Bits $ drop n bs
 
 -- empty 4 bit memory
 empty4BitsMem :: Bits N4
-empty4BitsMem = Bits [O,O,O,O]
+empty4BitsMem = O:*O:*O:*O:*End
 
--- rewrite all memry
-rewriteMem :: Bits N4 -> Bits N4 -> Bits N4
-rewriteMem bits _ = bits
+-- -- rewrite all memry
+-- rewriteMem :: Bits N4 -> Bits N4 -> Bits N4
+-- rewriteMem bits _ = bits
 
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
@@ -176,29 +253,43 @@ memTest = proc (input, writeFlag) -> do
   output <- dHold empty4BitsMem -< if writeFlag == I then Event input else NoEvent
   returnA -<  output
 
+  -- -- empty 4 bit memory
+  -- empty4BitsMem :: Bits N4
+  -- empty4BitsMem = Bits [O,O,O,O]
+  --
+  -- -- -- rewrite all memry
+  -- -- rewriteMem :: Bits N4 -> Bits N4 -> Bits N4
+  -- -- rewriteMem bits _ = bits
+  --
+  -- -- メモリとしての機能を果たすか作ってみて確かめる
+  -- memTest :: SF (Bits N4, Bit) (Bits N4)
+  -- memTest = proc (input, writeFlag) -> do
+  --   output <- dHold empty4BitsMem -< if writeFlag == I then Event input else NoEvent
+  --   returnA -<  output
+
 -- Test for 4 bits adder
 testForAdd4bits = do
   prevOut <- newIORef (undefined :: Bits N5)
-  let zero = (Bits [O,O,O,O] :: Bits N4)
-      one  = (Bits [O,O,O,I] :: Bits N4)
+  let zero = O:*O:*O:*O:*End
+      one  = O:*O:*O:*I:*End
   reactimate (return (zero, zero))
                (\_ -> do
                  threadDelay 100000
                  out <- readIORef prevOut
-                 return (0.1, (Just $ (bitsDrop 1 out, one) )))
+                 return (0.1, (Just $ (dropBits 1 out, one) )))
                (\_ out -> print (out, bitsToIntMay out) >> writeIORef prevOut out >> return False)
                (add4Bits)
 
 -- Test for 4 bits adder and Memory
 testForAdd4bitsAndMem = do
- let zero   = (Bits [O,O,O,O] :: Bits N4)
-     one    = (Bits [O,O,O,I] :: Bits N4)
+ let zero = O:*O:*O:*O:*End
+     one  = O:*O:*O:*I:*End
      mainSF :: SF Bit (Bits N4)
      mainSF = proc writeFlag -> do
       rec
-        memData <- memTest -< (bitsDrop 1 added, writeFlag)
+        memData <- memTest -< (dropBits 1 added, writeFlag)
         added   <- add4Bits -< (memData, one)
-      returnA -< bitsDrop 1 added
+      returnA -< dropBits 1 added
 
  reactimate (return O)
             (\_ -> threadDelay 100000 >> return (0.1, Just I))

@@ -18,6 +18,8 @@
 -- import           Data.Maybe
 -- import           FRP.Yampa
 -- import           Data.Type.Equality
+import           Data.Bits     (shift, (.|.))
+import           Data.Foldable
 import           Unsafe.Coerce
 
 -- data N0 = N0 deriving Show
@@ -129,6 +131,31 @@ data Bits :: * -> * where
 
 infixr 0 :*
 
+
+-- foldrBits :: (a -> Bit -> a) -> a -> Bits n
+-- foldrBits k z = go
+--   where
+--     go End     = z
+--     go (y:*ys) = y `k` go ys
+
+
+-- fold left for Bits
+foldlBits :: (a -> Bit -> a) -> a -> Bits n -> a
+foldlBits op zero End     = zero
+foldlBits op zero (x:*xs) = foldlBits op (op zero x) xs
+
+-- fold right for Bits
+foldrBits :: (Bit -> a -> a) -> a -> Bits n -> a
+foldrBits op zero End     = zero
+foldrBits op zero (x:*xs) = op x (foldrBits op zero xs)
+
+-- fold left Maybe for Bits
+foldlMaybeBits :: (a -> Bit -> Maybe a) -> a -> Bits n -> Maybe a
+foldlMaybeBits op zero End     = Just zero
+foldlMaybeBits op zero (x:*xs) = do
+  a <- op zero x
+  foldlMaybeBits op a xs
+
 -- class Lengthable n where
 --   lengthBits2 :: Bits n -> SNat n
 --
@@ -188,6 +215,13 @@ snatValue :: SNat n -> String
 snatValue SN0       = "0."
 snatValue (SSucc n) = "1+" ++ snatValue n
 
+bitsToIntMaybe :: Bits a -> Maybe Int
+bitsToIntMaybe bs = foldlMaybeBits (\s b -> case b of
+    O -> Just $ s `shift` 1 .|. 0
+    I -> Just $ s `shift` 1 .|. 1
+    X -> Nothing
+  ) 0 bs
+
 main :: IO ()
 main = do
   let bits1   = I:*I:*O:*I:*End
@@ -204,4 +238,5 @@ main = do
   putStrLn $ snatValue $ lengthBits bits1
   print $ range n2 n1 bits1
   print $ range n7 n1 bits1
+  print $ bitsToIntMaybe bits1
   return ()
