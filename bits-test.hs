@@ -222,6 +222,11 @@ bitsToIntMaybe bs = foldlMaybeBits (\s b -> case b of
     X -> Nothing
   ) 0 bs
 
+-- Convert Bits into [Bit]
+bitsToList :: Bits n -> [Bit]
+bitsToList End     = []
+bitsToList (x:*xs) = x : bitsToList xs
+
 main :: IO ()
 main = do
   let bits1   = I:*I:*O:*I:*End
@@ -239,4 +244,5 @@ main = do
   print $ range n2 n1 bits1
   print $ range n7 n1 bits1
   print $ bitsToIntMaybe bits1
+  print $ bitsToList bits1
   return ()
