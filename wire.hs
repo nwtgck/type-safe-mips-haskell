@@ -10,6 +10,7 @@ import           Data.IORef
 import           Data.Maybe
 import           Debug.Trace
 import           FRP.Yampa
+import           FRP.Yampa.Event
 
 data N0
 data Succ n
@@ -20,7 +21,7 @@ type N4 = Succ N3
 type N5 = Succ N4
 
 -- O, I, X mean 0, 1, x respectively
-data Bit = O | I | X deriving Show
+data Bit = O | I | X deriving (Show, Eq)
 
 data Bits n = Bits [Bit] deriving Show -- Bits synonim can be changed, so I use the synonim
 
@@ -161,6 +162,20 @@ bitsToIntMay (Bits bs) = foldM (\s b -> case b of
 -- TODO use range(but not implemented)
 bitsDrop n (Bits bs) = Bits $ drop n bs
 
+-- empty 4 bit memory
+empty4BitsMem :: Bits N4
+empty4BitsMem = Bits [O,O,O,O]
+
+-- rewrite all memry
+rewriteMem :: Bits N4 -> Bits N4 -> Bits N4
+rewriteMem bits _ = bits
+
+-- メモリとしての機能を果たすか作ってみて確かめる
+memTest :: SF (Bits N4, Bit) (Bits N4)
+memTest = proc (input, writeFlag) -> do
+  output <- dHold empty4BitsMem -< if writeFlag == I then Event input else NoEvent
+  returnA -<  output
+
 -- Test for 4 bits adder
 testForAdd4bits = do
   prevOut <- newIORef (undefined :: Bits N5)
@@ -173,6 +188,22 @@ testForAdd4bits = do
                  return (0.1, (Just $ (bitsDrop 1 out, one) )))
                (\_ out -> print (out, bitsToIntMay out) >> writeIORef prevOut out >> return False)
                (add4Bits)
+
+-- Test for 4 bits adder and Memory
+testForAdd4bitsAndMem = do
+ let zero   = (Bits [O,O,O,O] :: Bits N4)
+     one    = (Bits [O,O,O,I] :: Bits N4)
+     mainSF :: SF Bit (Bits N4)
+     mainSF = proc writeFlag -> do
+      rec
+        memData <- memTest -< (bitsDrop 1 added, writeFlag)
+        added   <- add4Bits -< (memData, one)
+      returnA -< bitsDrop 1 added
+
+ reactimate (return O)
+            (\_ -> threadDelay 100000 >> return (0.1, Just I))
+            (\_ out -> print (out, bitsToIntMay out) >> return False)
+            (mainSF)
 
 -- Test for RS flip-flop
 testForRsff = do
@@ -194,4 +225,4 @@ orTest = do
   print $ X #| I         -- I
 
 main :: IO ()
-main = testForRsff
+main = testForAdd4bitsAndMem
