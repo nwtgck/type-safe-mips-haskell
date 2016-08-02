@@ -101,6 +101,9 @@ takeBits SN0 bits           = End
 takeBits _   End            = End
 takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
+headBits :: Bits (Succ n) -> Bit
+headBits (b:*bs) = b
+
 -- fold left for Bits
 foldlBits :: (a -> Bit -> a) -> a -> Bits n -> a
 foldlBits op zero End     = zero
@@ -251,6 +254,14 @@ or4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   o3 <- orGate -< (a3, b3)
   returnA -< o3:*o2:*o1:*o0:*End
 
+
+-- Set less than -- 4 Bits
+-- if as < bs then 1 else 0 (as and bs are signed values)
+lt4Bits :: SF (Bits N4, Bits N4) (Bits N4)
+lt4Bits = proc (as, bs) -> do
+  subo <- sub4Bits -< (as, bs)
+  let neg = headBits subo
+  returnA -< O:*O:*O:*neg:*End
 
 -- RS flip-flop
 -- TODO 最初の出力が(I, I)になってしまう（最初だけなので、大量に流すときは些細なことになると思うが）
