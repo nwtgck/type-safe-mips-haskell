@@ -213,7 +213,7 @@ fullAdder = proc (a, b, cin) -> do
   returnA -< (c0 #| c1, s1)
 
 -- 4 bits Adder
-add4Bits :: SF (Bits N4, Bits N4) (Bits N5)
+add4Bits :: SF (Bits N4, Bits N4) (Bits N4)
 -- 残念ながら、procとGATDsを両方使った状態でパターンマッチできない（Proc patterns cannot use existential or GADT data constructors）
 -- add4Bits = proc (a3:*a2:*a1:*a0:*End, b3:*b2:*b1:*b0:*End) -> do
 add4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do -- ViewPatternを使って上記の問題をしのぐ。これではビット数でのパターンマッチエラーをコンパイル時に防げない。残念
@@ -221,7 +221,16 @@ add4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   (c1, s1) <- fullAdder -< (a1, b1, c0)
   (c2, s2) <- fullAdder -< (a2, b2, c1)
   (c3, s3) <- fullAdder -< (a3, b3, c2)
-  returnA -< c3:*s3:*s2:*s1:*s0:*End
+  returnA -< s3:*s2:*s1:*s0:*End
+
+-- 4 bits Substractor
+sub4Bits :: SF (Bits N4, Bits N4) (Bits N4)
+sub4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do -- ViewPatternを使って上記の問題をしのぐ。これではビット数でのパターンマッチエラーをコンパイル時に防げない。残念
+  (c0, s0) <- fullAdder -< (a0, inv b0, I)
+  (c1, s1) <- fullAdder -< (a1, inv b1, c0)
+  (c2, s2) <- fullAdder -< (a2, inv b2, c1)
+  (c3, s3) <- fullAdder -< (a3, inv b3, c2)
+  returnA -< s3:*s2:*s1:*s0:*End
 
 -- RS flip-flop
 -- TODO 最初の出力が(I, I)になってしまう（最初だけなので、大量に流すときは些細なことになると思うが）
@@ -294,16 +303,32 @@ memTest = proc (input, writeFlag) -> do
 
 -- Test for 4 bits adder
 testForAdd4bits = do
-  prevOut <- newIORef (undefined :: Bits N5)
+  prevOut <- newIORef (undefined :: Bits N4)
   let zero = O:*O:*O:*O:*End
       one  = O:*O:*O:*I:*End
   reactimate (return (zero, zero))
                (\_ -> do
                  threadDelay 100000
                  out <- readIORef prevOut
-                 return (0.1, (Just $ (dropBits n1 out, one) )))
+                 return (0.1, (Just $ (out, one) )))
                (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
                (add4Bits)
+
+-- Test for 4 bits sub
+testForSub4bits = do
+ prevOut <- newIORef (undefined :: Bits N4)
+ let
+     zero = O:*O:*O:*O:*End
+     b15 = I:*I:*I:*I:*End
+     one  = O:*O:*O:*I:*End
+     a = embed (sub4Bits) ((b15, zero), [])
+ reactimate (return (b15, zero))
+              (\_ -> do
+                threadDelay 100000
+                out <- readIORef prevOut
+                return (0.1, (Just $ (out, one) )))
+              (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
+              (sub4Bits)
 
 -- Test for 4 bits adder and Memory
 testForAdd4bitsAndMem = do
@@ -312,9 +337,9 @@ testForAdd4bitsAndMem = do
      mainSF :: SF Bit (Bits N4)
      mainSF = proc writeFlag -> do
       rec
-        memData <- memTest -< (dropBits n1 added, writeFlag)
+        memData <- memTest  -< (added, writeFlag)
         added   <- add4Bits -< (memData, one)
-      returnA -< dropBits n1 added
+      returnA -< added
 
  reactimate (return O)
             (\_ -> threadDelay 100000 >> return (0.1, Just I))
@@ -341,4 +366,4 @@ orTest = do
   print $ X #| I         -- I
 
 main :: IO ()
-main = testForAdd4bitsAndMem
+main = testForSub4bits
