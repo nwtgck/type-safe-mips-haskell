@@ -11,6 +11,7 @@ import           Control.Concurrent
 import           Control.Monad
 import           Data.Bits          (shift, (.|.))
 import           Data.IORef
+import           Data.List
 import           Data.Maybe
 import           Debug.Trace
 import           FRP.Yampa
@@ -232,6 +233,25 @@ sub4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   (c3, s3) <- fullAdder -< (a3, inv b3, c2)
   returnA -< s3:*s2:*s1:*s0:*End
 
+-- AND - 4 Bits
+and4Bits :: SF (Bits N4, Bits N4) (Bits N4)
+and4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
+  o0 <- andGate -< (a0, b0)
+  o1 <- andGate -< (a1, b1)
+  o2 <- andGate -< (a2, b2)
+  o3 <- andGate -< (a3, b3)
+  returnA -< o3:*o2:*o1:*o0:*End
+
+-- OR - 4 Bits
+or4Bits :: SF (Bits N4, Bits N4) (Bits N4)
+or4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
+  o0 <- orGate -< (a0, b0)
+  o1 <- orGate -< (a1, b1)
+  o2 <- orGate -< (a2, b2)
+  o3 <- orGate -< (a3, b3)
+  returnA -< o3:*o2:*o1:*o0:*End
+
+
 -- RS flip-flop
 -- TODO 最初の出力が(I, I)になってしまう（最初だけなので、大量に流すときは些細なことになると思うが）
 -- TODO 前がresetの時にsetにすると(I, O)となってほしいが(I, I)となる。ハザードなのかもしれない
@@ -329,6 +349,22 @@ testForSub4bits = do
                 return (0.1, (Just $ (out, one) )))
               (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
               (sub4Bits)
+
+-- Test for 4 bits and
+testForAnd4bits = do
+ prevOut <- newIORef (undefined :: Bits N4)
+ let
+     zero = O:*O:*O:*O:*End
+     b15 = I:*I:*I:*I:*End
+     one  = O:*O:*O:*I:*End
+     a = embed (sub4Bits) ((b15, zero), [])
+ reactimate (return (b15, zero))
+              (\_ -> do
+                threadDelay 100000
+                out <- readIORef prevOut
+                return (0.1, (Just $ (out, one) )))
+              (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
+              (and4Bits)
 
 -- Test for 4 bits adder and Memory
 testForAdd4bitsAndMem = do
