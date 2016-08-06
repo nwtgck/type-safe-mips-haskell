@@ -395,25 +395,32 @@ testForAdd4bitsAndMem = do
             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
             (mainSF)
 
--- Test for delayed 4 bits adder and Memory
--- TODO 遅延部分の処理は同じになるはずなので、くくりだしたい
-testForDelayAdd4bitsAndMem = do
-  let zero = O:*O:*O:*O:*End
-      one  = O:*O:*O:*I:*End
-      mainSF :: SF Bit (Bits N4)
-      mainSF = proc writeFlag -> do
-       rec
-         memData  <- memTest  -< (out, writeFlag)
-         added    <- add4Bits -< (memData, one)
-         preAdded <- dHold (X:*X:*X:*X:*End) -< Event out
-         delayed  <- delay 0.5 (X:*X:*X:*X:*End) -< added
-         let out = if delayed == (X:*X:*X:*X:*End) then preAdded else delayed
-       returnA -< out
+-- Return Time delayed SF
+delayedSF :: Eq b => Time -> b -> SF a b -> SF a b
+delayedSF time init sf = proc sfIn -> do
+  rec
+    sfOut   <- sf -< sfIn
+    pre     <- dHold init -< Event out
+    delayed <- delay time init -< sfOut
+    let out = if delayed == init then pre else delayed
+  returnA -< out
 
-  reactimate (return O)
-             (\_ -> threadDelay 100000 >> return (0.1, Just I))
-             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
-             (mainSF)
+
+-- Test for delayed 4 bits adder and Memory
+testForDelayAdd4bitsAndMem = do
+ let zero = O:*O:*O:*O:*End
+     one  = O:*O:*O:*I:*End
+     mainSF :: SF Bit (Bits N4)
+     mainSF = proc writeFlag -> do
+      rec
+        memData  <- memTest  -< (out, writeFlag)
+        out    <- delayedSF 0.5 (X:*X:*X:*X:*End) add4Bits -< (memData, one)
+      returnA -< out
+
+ reactimate (return O)
+            (\_ -> threadDelay 100000 >> return (0.1, Just I))
+            (\_ out -> print (out, bitsToIntMaybe out) >> return False)
+            (mainSF)
 
 -- Test for RS flip-flop
 testForRsff = do
