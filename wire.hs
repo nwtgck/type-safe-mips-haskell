@@ -393,6 +393,24 @@ testForAdd4bitsAndMem = do
             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
             (mainSF)
 
+-- Test for delayed 4 bits adder and Memory
+-- TODO 出力が最初はxxxでいいが、そのあとは前に出していたものを使ってほしい
+testForDelayAdd4bitsAndMem = do
+  let zero = O:*O:*O:*O:*End
+      one  = O:*O:*O:*I:*End
+      mainSF :: SF Bit (Bits N4)
+      mainSF = proc writeFlag -> do
+       rec
+         memData <- memTest  -< (delayed, writeFlag)
+         added   <- add4Bits -< (memData, one)
+         delayed <- delay (1.0) (X:*X:*X:*X:*End) -< added
+       returnA -< delayed
+
+  reactimate (return O)
+             (\_ -> threadDelay 100000 >> return (0.1, Just I))
+             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
+             (mainSF)
+
 -- Test for RS flip-flop
 testForRsff = do
   let reset = (O, I)
@@ -413,4 +431,4 @@ orTest = do
   print $ X #| I         -- I
 
 main :: IO ()
-main = testForSub4bits
+main = testForDelayAdd4bitsAndMem
