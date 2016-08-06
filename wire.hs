@@ -30,6 +30,7 @@ type N5 = Succ N4
 data SNat n :: * where
   SN0   :: SNat N0
   SSucc :: SNat n ->  SNat (Succ n)
+deriving instance Show (SNat n)
 
 n0 = SN0
 n1 = SSucc n0
@@ -52,6 +53,16 @@ a   #- SN0             = a
 
 -- (SSucc a) #+ b = SSucc (a #+ b)
 infixl 6 #-
+
+-- Nat to SNat converter
+class NatToSNat n where
+  natToSNat :: n -> SNat n
+
+instance NatToSNat N0 where
+  natToSNat _ = n0
+
+instance NatToSNat n => NatToSNat (Succ n) where
+  natToSNat _ = n1 #+ natToSNat (undefined :: n)
 
 type family a + b :: * where
   N0 + b       = b
@@ -442,4 +453,7 @@ orTest = do
   print $ X #| I         -- I
 
 main :: IO ()
-main = testForDelayAdd4bitsAndMem
+main = do
+  -- test for converting from nat to snat
+  print $ natToSNat (undefined :: N2)
+  print $ natToSNat (undefined :: N0)
