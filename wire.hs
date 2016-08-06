@@ -416,6 +416,14 @@ delayedSF time init sf = proc sfIn -> do
     let out = if delayed == init then pre else delayed
   returnA -< out
 
+-- Return filled bits with bit
+fillBits :: Bit -> SNat n -> Bits n
+fillBits bit SN0       = End
+fillBits bit (SSucc n) = bit :* fillBits bit n
+
+-- n bits X
+unknowns :: SNat n -> Bits n
+unknowns = fillBits X
 
 -- Test for delayed 4 bits adder and Memory
 testForDelayAdd4bitsAndMem = do
@@ -425,7 +433,7 @@ testForDelayAdd4bitsAndMem = do
      mainSF = proc writeFlag -> do
       rec
         memData  <- memTest  -< (out, writeFlag)
-        out    <- delayedSF 0.5 (X:*X:*X:*X:*End) add4Bits -< (memData, one)
+        out    <- delayedSF 0.5 (unknowns n4) add4Bits -< (memData, one)
       returnA -< out
 
  reactimate (return O)
@@ -454,6 +462,5 @@ orTest = do
 
 main :: IO ()
 main = do
-  -- test for converting from nat to snat
-  print $ natToSNat (undefined :: N2)
-  print $ natToSNat (undefined :: N0)
+  print $ fillBits O n5
+  print $ unknowns n6
