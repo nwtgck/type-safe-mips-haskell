@@ -1,11 +1,12 @@
 -- Yampaを使って論理回路を作る
 -- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
-{-# LANGUAGE Arrows        #-}
-{-# LANGUAGE GADTs         #-}
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns  #-}
+{-# LANGUAGE Arrows             #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE ViewPatterns       #-}
 
 import           Control.Concurrent
 import           Control.Monad
@@ -86,6 +87,7 @@ data Bits :: * -> * where
   (:*) :: Bit -> Bits n -> Bits (Succ n)
 
 infixr 0 :*
+deriving instance Eq (Bits n)
 
 instance Show (Bits n) where
   show End     = ""
@@ -394,17 +396,19 @@ testForAdd4bitsAndMem = do
             (mainSF)
 
 -- Test for delayed 4 bits adder and Memory
--- TODO 出力が最初はxxxでいいが、そのあとは前に出していたものを使ってほしい
+-- TODO 遅延部分の処理は同じになるはずなので、くくりだしたい
 testForDelayAdd4bitsAndMem = do
   let zero = O:*O:*O:*O:*End
       one  = O:*O:*O:*I:*End
       mainSF :: SF Bit (Bits N4)
       mainSF = proc writeFlag -> do
        rec
-         memData <- memTest  -< (delayed, writeFlag)
-         added   <- add4Bits -< (memData, one)
-         delayed <- delay (1.0) (X:*X:*X:*X:*End) -< added
-       returnA -< delayed
+         memData  <- memTest  -< (out, writeFlag)
+         added    <- add4Bits -< (memData, one)
+         preAdded <- dHold (X:*X:*X:*X:*End) -< Event out
+         delayed  <- delay 0.5 (X:*X:*X:*X:*End) -< added
+         let out = if delayed == (X:*X:*X:*X:*End) then preAdded else delayed
+       returnA -< out
 
   reactimate (return O)
              (\_ -> threadDelay 100000 >> return (0.1, Just I))
