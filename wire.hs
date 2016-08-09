@@ -1,5 +1,4 @@
 -- Yampaを使って論理回路を作る
--- TODO Bitsに長さを含めて型付けする（ビット違いの配線ミスを防ぐため）(多少型付けした)
 
 {-# LANGUAGE Arrows             #-}
 {-# LANGUAGE GADTs              #-}
