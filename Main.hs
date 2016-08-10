@@ -86,10 +86,6 @@ tracer = proc a -> do
 -- -- TODO use range(but not implemented)
 -- bitsDrop n (Bits bs) = Bits $ drop n bs
 
--- empty 4 bit memory
-empty4BitsMem :: Bits N4
-empty4BitsMem = O:*O:*O:*O:*End
-
 -- -- rewrite all memry
 -- rewriteMem :: Bits N4 -> Bits N4 -> Bits N4
 -- rewriteMem bits _ = bits
@@ -97,7 +93,7 @@ empty4BitsMem = O:*O:*O:*O:*End
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
 memTest = proc (input, writeFlag) -> do
-  output <- dHold empty4BitsMem -< if writeFlag == I then Event input else NoEvent
+  output <- dHold (fillBits O n4) -< if writeFlag == I then Event input else NoEvent
   returnA -<  output
 
   -- -- empty 4 bit memory
