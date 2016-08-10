@@ -18,9 +18,13 @@ module Bit(
   foldlMaybeBits,
   lengthBits,
   range,
-  bitsToList
+  bitsToList,
+  fillBits,
+  unknowns,
+  bitsToIntMaybe
 ) where
 
+import           Data.Bits (shift, (.|.))
 import           Natural
 
 
@@ -109,3 +113,20 @@ range s e bs = takeBits (s #- e #+ n1) . dropBits (n #- n1 #- s) $ bs
 bitsToList :: Bits n -> [Bit]
 bitsToList End     = []
 bitsToList (x:*xs) = x : bitsToList xs
+
+-- Return filled bits with bit
+fillBits :: Bit -> SNat n -> Bits n
+fillBits bit SN0       = End
+fillBits bit (SSucc n) = bit :* fillBits bit n
+
+-- n bits X
+unknowns :: SNat n -> Bits n
+unknowns = fillBits X
+
+-- Converter for Bits to Int number
+bitsToIntMaybe :: Bits a -> Maybe Int
+bitsToIntMaybe bs = foldlMaybeBits (\s b -> case b of
+    O -> Just $ s `shift` 1 .|. 0
+    I -> Just $ s `shift` 1 .|. 1
+    X -> Nothing
+  ) 0 bs
