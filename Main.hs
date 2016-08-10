@@ -1,9 +1,9 @@
 -- Yampaを使って論理回路を作る
 
-{-# LANGUAGE Arrows             #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE TypeFamilies       #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE Arrows        #-}
+{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE TypeFamilies  #-}
+{-# LANGUAGE TypeOperators #-}
 
 
 import           BasicUnit
@@ -12,6 +12,7 @@ import           Control.Concurrent
 import           Data.IORef
 import           FRP.Yampa
 import           Natural
+import DelayedSF
 
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
@@ -79,17 +80,6 @@ testForAdd4bitsAndMem = do
             (\_ -> threadDelay 100000 >> return (0.1, Just I))
             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
             (mainSF)
-
--- Return Time delayed SF
-delayedSF :: Eq b => Time -> b -> SF a b -> SF a b
-delayedSF time init sf = proc sfIn -> do
-  rec
-    sfOut   <- sf -< sfIn
-    pre     <- dHold init -< Event out
-    delayed <- delay time init -< sfOut
-    let out = if delayed == init then pre else delayed
-  returnA -< out
-
 
 -- Test for delayed 4 bits adder and Memory
 testForDelayAdd4bitsAndMem = do
