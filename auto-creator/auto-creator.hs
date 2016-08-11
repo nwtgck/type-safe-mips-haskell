@@ -38,8 +38,17 @@ main = do
       putStrLn ""
 
       forM_ [n-1, n-2..0] $ \i -> printf "s%d:*" i
-      putStrLn "End"
-      -- s3:*s2:*s1:*s0:*End
+      putStrLn "End\n"
 
+      forM_ [0..n-1] $ \i -> do
+        printf "o%d <- andGate -< (a%d, b%d)\n" i i i
+      putStrLn ""
+
+      forM_ [0..n-1] $ \i -> do
+        printf "o%d <- orGate -< (a%d, b%d)\n" i i i
+      putStrLn ""
+
+      forM_ [n-1, n-2..0] $ \i -> printf "o%d:*" i
+      putStrLn "End\n"
 
     _ -> putStrLn ("input error\nusage: auto-creator 32")
