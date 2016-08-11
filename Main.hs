@@ -190,14 +190,16 @@ testForResister = do
     -- [(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,11111111111111111111111111111111),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000001011),(00000000000000000000000000000000,00000000000000000000000000001011)]
 
 -- ALU
-alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32)
+alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32, Bit)
 alu = proc (a, b, aluOp) -> do
   andRes <- and32Bits -< (a, b)
   orRes  <- or32Bits  -< (a, b)
   addRes <- add32Bits -< (a, b)
   subRes <- sub32Bits -< (a, b)
   let ltRes = fillBits O n31 +*+ takeBits n1 subRes
-  mux32In5 -< (andRes, orRes, addRes, subRes, ltRes, aluOp)
+  res <- mux32In5 -< (andRes, orRes, addRes, subRes, ltRes, aluOp)
+  let zeroFlag = if res == fillBits O n32 then I else O
+  returnA -< (res, zeroFlag)
 
 -- Multiplexer (1 in 4, output is 32bits)
 mux32In5 :: SF (Bits N32, Bits N32, Bits N32, Bits N32, Bits N32, Bits N3) (Bits N32)
