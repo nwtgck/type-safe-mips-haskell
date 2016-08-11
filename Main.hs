@@ -235,6 +235,7 @@ testForAlu = do
   -- 出力
   -- [00000000000000000000000000001010,00000000000000000000000000000001,00000000000000000000000000000101,11111111111111111111111111111100,00000000000000000000000000000001,00000000000000000000000000000000]
 
+-- Main Control
 mainControl :: SF (Bits N6) (Bit, Bit, Bit, Bit, Bits N2, Bit, Bit, Bit)
 mainControl = arr mainControlFunc
   where
@@ -325,5 +326,35 @@ mainControl = arr mainControlFunc
             memWrite = O
             branch   = O
             aluOp    = I:*I:*End
+
+-- ALU Control
+aluControl :: SF (Bits N6, Bits N6, Bits N2) (Bits N3)
+aluControl = arr aluControlFunc
+ where
+  aluControlFunc :: (Bits N6, Bits N6, Bits N2) -> Bits N3
+  aluControlFunc (opcode, funct, aluOp) = case aluOp of
+      O:*O:*End -> cAdd -- addition for lw or sw
+      O:*I:*End -> cSub -- substraction for beq
+      -- R-format
+      I:*O:*End -> case funct of
+        I:*O:*O:*O:*O:*O:*End -> cAdd
+        I:*O:*O:*O:*I:*O:*End -> cSub
+        I:*O:*O:*I:*O:*O:*End -> cAnd
+        I:*O:*O:*I:*O:*I:*End -> cOr
+        I:*O:*I:*O:*I:*O:*End -> cLt
+      -- immediate
+      I:*I:*End -> case opcode of
+        O:*O:*I:*O:*O:*O:*End -> cAdd
+        O:*O:*I:*I:*O:*O:*End -> cAnd
+        O:*O:*I:*I:*O:*I:*End -> cOr
+        O:*O:*I:*O:*I:*O:*End -> cLt
+    where
+      cAdd = O:*I:*O:*End
+      cSub = I:*I:*O:*End
+      cAnd = O:*O:*O:*End
+      cOr  = O:*O:*I:*End
+      cLt  = I:*I:*I:*End
+
+
 main :: IO ()
 main = testForAlu
