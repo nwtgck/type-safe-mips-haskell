@@ -34,6 +34,19 @@ testForAdd4bits = do
                (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
                (add4Bits)
 
+-- Test for 32 bits adder
+testForAdd32bits = do
+ prevOut <- newIORef (undefined :: Bits N32)
+ let zero = fillBits O n32
+     one  = O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*I:*End
+ reactimate (return (zero, zero))
+              (\_ -> do
+                threadDelay 80000
+                out <- readIORef prevOut
+                return (0.1, (Just $ (out, one) )))
+              (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
+              (add32Bits)
+
 -- Test for 4 bits sub
 testForSub4bits = do
  prevOut <- newIORef (undefined :: Bits N4)
@@ -164,6 +177,13 @@ testForResister = do
     -- 出力
     -- [(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,11111111111111111111111111111111),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000001011),(00000000000000000000000000000000,00000000000000000000000000001011)]
 
+-- -- alu
+-- alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32)
+-- alu = arr aluFunc
+--   where
+--     aluFunc a b aluOp =
+--       let func = case alOp of
+--         (O:*O:*O:*End) -> add4Bits
 
 main :: IO ()
-main = testForResister
+main = testForAdd32bits
