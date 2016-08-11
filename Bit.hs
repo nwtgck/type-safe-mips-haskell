@@ -89,6 +89,7 @@ headBits (b:*bs) = b
 (+*+) :: Bits n -> Bits m -> Bits (n+m)
 End     +*+ bs = bs
 (x:*xs) +*+ bs = x :* (xs +*+ bs)
+infixr 5 +*+
 
 -- fold left for Bits
 foldlBits :: (a -> Bit -> a) -> a -> Bits n -> a

@@ -162,9 +162,6 @@ resister = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag
 
 -- レジスタのテスト
 testForResister = do
-  -- let xs = [1, 2, 3, 4, 5]
-  -- print $ listUpdate xs 4 10000
-
   let
       -- 4bitの0, 1
       b0 = fillBits O n4
@@ -192,13 +189,49 @@ testForResister = do
     -- 出力
     -- [(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,11111111111111111111111111111111),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000001011),(00000000000000000000000000000000,00000000000000000000000000001011)]
 
--- -- alu
--- alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32)
--- alu = arr aluFunc
---   where
---     aluFunc a b aluOp =
---       let func = case alOp of
---         (O:*O:*O:*End) -> add4Bits
+-- ALU
+alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32)
+alu = proc (a, b, aluOp) -> do
+  andRes <- and32Bits -< (a, b)
+  orRes  <- or32Bits  -< (a, b)
+  addRes <- add32Bits -< (a, b)
+  subRes <- sub32Bits -< (a, b)
+  let ltRes = fillBits O n31 +*+ takeBits n1 subRes
+  mux32In5 -< (andRes, orRes, addRes, subRes, ltRes, aluOp)
+
+-- Multiplexer (1 in 4, output is 32bits)
+mux32In5 :: SF (Bits N32, Bits N32, Bits N32, Bits N32, Bits N32, Bits N3) (Bits N32)
+mux32In5 = proc (ooo, ooi, oio, iio, iii, d) -> do
+  returnA -< case d of
+    O:*O:*I:*End -> ooi
+    O:*I:*O:*End -> oio
+    I:*I:*O:*End -> iio
+    I:*I:*I:*End -> iii
+    _            -> ooo
+
+-- ALUのテスト
+testForAlu :: IO ()
+testForAlu = do
+  let
+      -- 32bits values
+      b0 = fillBits O n32                       :: Bits N32
+      b1 = fillBits O n31 +*+ (I:*End)          :: Bits N32
+      b5 = fillBits O n28 +*+ (O:*I:*O:*I:*End) :: Bits N32
+
+      -- ALUOp
+      cAND = O:*O:*O:*End
+      cOR  = O:*O:*I:*End
+      cADD = O:*I:*O:*End
+      cSUB = I:*I:*O:*End
+      cLt  = I:*I:*I:*End
+
+  return ()
+  print $ embed
+    (alu) -- 使いたいSF
+    ((b5, b5, cADD), [(0.1, Just e) | e <- [(b1, b5, cAND), (b1, b5, cOR), (b1, b5, cSUB), (b1, b5, cLt), (b5, b1, cLt)]])
+
+  -- 出力
+  -- [00000000000000000000000000001010,00000000000000000000000000000001,00000000000000000000000000000101,11111111111111111111111111111100,00000000000000000000000000000001,00000000000000000000000000000000]
 
 main :: IO ()
-main = testForSub32bits
+main = testForAlu
