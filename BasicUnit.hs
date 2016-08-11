@@ -20,7 +20,9 @@ module BasicUnit(
   or4Bits,
   lt4Bits,
   add32Bits,
-  sub32Bits
+  sub32Bits,
+  and32Bits,
+  or32Bits
 ) where
 
 
@@ -179,6 +181,43 @@ and4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   o3 <- andGate -< (a3, b3)
   returnA -< o3:*o2:*o1:*o0:*End
 
+-- AND - 32bit
+and32Bits :: SF (Bits N32, Bits N32) (Bits N32)
+and32Bits = proc (bitsToList -> [a31,a30,a29,a28,a27,a26,a25,a24,a23,a22,a21,a20,a19,a18,a17,a16,a15,a14,a13,a12,a11,a10,a9,a8,a7,a6,a5,a4,a3,a2,a1,a0], bitsToList -> [b31,b30,b29,b28,b27,b26,b25,b24,b23,b22,b21,b20,b19,b18,b17,b16,b15,b14,b13,b12,b11,b10,b9,b8,b7,b6,b5,b4,b3,b2,b1,b0]) -> do
+  o0  <- andGate -< (a0, b0)
+  o1  <- andGate -< (a1, b1)
+  o2  <- andGate -< (a2, b2)
+  o3  <- andGate -< (a3, b3)
+  o4  <- andGate -< (a4, b4)
+  o5  <- andGate -< (a5, b5)
+  o6  <- andGate -< (a6, b6)
+  o7  <- andGate -< (a7, b7)
+  o8  <- andGate -< (a8, b8)
+  o9  <- andGate -< (a9, b9)
+  o10 <- andGate -< (a10, b10)
+  o11 <- andGate -< (a11, b11)
+  o12 <- andGate -< (a12, b12)
+  o13 <- andGate -< (a13, b13)
+  o14 <- andGate -< (a14, b14)
+  o15 <- andGate -< (a15, b15)
+  o16 <- andGate -< (a16, b16)
+  o17 <- andGate -< (a17, b17)
+  o18 <- andGate -< (a18, b18)
+  o19 <- andGate -< (a19, b19)
+  o20 <- andGate -< (a20, b20)
+  o21 <- andGate -< (a21, b21)
+  o22 <- andGate -< (a22, b22)
+  o23 <- andGate -< (a23, b23)
+  o24 <- andGate -< (a24, b24)
+  o25 <- andGate -< (a25, b25)
+  o26 <- andGate -< (a26, b26)
+  o27 <- andGate -< (a27, b27)
+  o28 <- andGate -< (a28, b28)
+  o29 <- andGate -< (a29, b29)
+  o30 <- andGate -< (a30, b30)
+  o31 <- andGate -< (a31, b31)
+  returnA -< o31:*o30:*o29:*o28:*o27:*o26:*o25:*o24:*o23:*o22:*o21:*o20:*o19:*o18:*o17:*o16:*o15:*o14:*o13:*o12:*o11:*o10:*o9:*o8:*o7:*o6:*o5:*o4:*o3:*o2:*o1:*o0:*End
+
 -- OR - 4 Bits
 or4Bits :: SF (Bits N4, Bits N4) (Bits N4)
 or4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
@@ -187,6 +226,43 @@ or4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   o2 <- orGate -< (a2, b2)
   o3 <- orGate -< (a3, b3)
   returnA -< o3:*o2:*o1:*o0:*End
+
+-- OR - 32bit
+or32Bits :: SF (Bits N32, Bits N32) (Bits N32)
+or32Bits = proc (bitsToList -> [a31,a30,a29,a28,a27,a26,a25,a24,a23,a22,a21,a20,a19,a18,a17,a16,a15,a14,a13,a12,a11,a10,a9,a8,a7,a6,a5,a4,a3,a2,a1,a0], bitsToList -> [b31,b30,b29,b28,b27,b26,b25,b24,b23,b22,b21,b20,b19,b18,b17,b16,b15,b14,b13,b12,b11,b10,b9,b8,b7,b6,b5,b4,b3,b2,b1,b0]) -> do
+  o0  <- orGate -< (a0, b0)
+  o1  <- orGate -< (a1, b1)
+  o2  <- orGate -< (a2, b2)
+  o3  <- orGate -< (a3, b3)
+  o4  <- orGate -< (a4, b4)
+  o5  <- orGate -< (a5, b5)
+  o6  <- orGate -< (a6, b6)
+  o7  <- orGate -< (a7, b7)
+  o8  <- orGate -< (a8, b8)
+  o9  <- orGate -< (a9, b9)
+  o10 <- orGate -< (a10, b10)
+  o11 <- orGate -< (a11, b11)
+  o12 <- orGate -< (a12, b12)
+  o13 <- orGate -< (a13, b13)
+  o14 <- orGate -< (a14, b14)
+  o15 <- orGate -< (a15, b15)
+  o16 <- orGate -< (a16, b16)
+  o17 <- orGate -< (a17, b17)
+  o18 <- orGate -< (a18, b18)
+  o19 <- orGate -< (a19, b19)
+  o20 <- orGate -< (a20, b20)
+  o21 <- orGate -< (a21, b21)
+  o22 <- orGate -< (a22, b22)
+  o23 <- orGate -< (a23, b23)
+  o24 <- orGate -< (a24, b24)
+  o25 <- orGate -< (a25, b25)
+  o26 <- orGate -< (a26, b26)
+  o27 <- orGate -< (a27, b27)
+  o28 <- orGate -< (a28, b28)
+  o29 <- orGate -< (a29, b29)
+  o30 <- orGate -< (a30, b30)
+  o31 <- orGate -< (a31, b31)
+  returnA -< o31:*o30:*o29:*o28:*o27:*o26:*o25:*o24:*o23:*o22:*o21:*o20:*o19:*o18:*o17:*o16:*o15:*o14:*o13:*o12:*o11:*o10:*o9:*o8:*o7:*o6:*o5:*o4:*o3:*o2:*o1:*o0:*End
 
 
 -- Set less than -- 4 Bits
