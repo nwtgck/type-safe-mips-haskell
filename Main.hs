@@ -10,9 +10,10 @@ import           BasicUnit
 import           Bit
 import           Control.Concurrent
 import           Data.IORef
+import           Data.Maybe
+import           DelayedSF
 import           FRP.Yampa
 import           Natural
-import DelayedSF
 
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
@@ -97,6 +98,72 @@ testForDelayAdd4bitsAndMem = do
             (\_ out -> print (out, bitsToIntMaybe out) >> return False)
             (mainSF)
 
+-- Update a List by specific index
+listUpdate :: [a] -> Int -> a -> [a]
+listUpdate []     _   _ = error "Can't update list"
+listUpdate (x:xs) 0   v = v : xs
+listUpdate (x:xs) idx v = x: listUpdate xs (idx-1) v
+
+
+-- If left is Event a, go on to Right Event
+goOnRight :: Event a -> Event b -> Event b
+goOnRight NoEvent _ = NoEvent
+goOnRight _       r = r
+
+-- Resister
+-- TODO クリアでの挙動を実装していない
+resister :: SF (Bits N4, Bits N4, Bits N4, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
+resister = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag) -> do
+  -- negative edge for clock
+  negClkEv <- edge -< clk == O
+  let
+    -- Parse write address (if Nothing: 0)
+    writeIdx = fromMaybe 0 (bitsToIntMaybe writeAddr)
+    writeEv = if writeFlag == I && writeIdx /= 0 -- $0 is always 0
+              then Event (\stored -> listUpdate stored writeIdx writeData)
+              else NoEvent
+    storeEv = negClkEv `goOnRight` writeEv
+  -- Get stored data
+  stored <- accumHold (replicate 32 (fillBits O n32)) -< storeEv
+  -- Read Addresses to Indexies
+  let read1Idx = fromMaybe 0 (bitsToIntMaybe readAddr1)
+      read2Idx = fromMaybe 0 (bitsToIntMaybe readAddr2)
+  -- Outputs are read data
+  returnA -< (stored !! read1Idx, stored !! read2Idx)
+
+
+-- レジスタのテスト
+testForResister = do
+  -- let xs = [1, 2, 3, 4, 5]
+  -- print $ listUpdate xs 4 10000
+
+  let
+      -- 4bitの0, 1
+      b0 = fillBits O n4
+      b1 = O:*O:*O:*I:*End
+      b5 = O:*I:*O:*I:*End
+
+      -- 書き込み使うデータ(32bitすべてで全部Iが詰まってるものと11)
+      writeData1 = fillBits I n32
+      writeData2 = O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*I:*O:*I:*I:*End
+
+      clockup = (b0, b0, b0, writeData1, I, X, O) -- クロックを立ち上げる
+      s0 = clockup -- クロックを立ち上げる
+      s1 = (b0, b5, b0, writeData1, O, X, O) -- 0,5番目を読みだすだけ（書き込みはしない）--クロックをたち下げ
+      s2 = clockup -- クロックを立ち上げる
+      s3 = (b0, b5, b5, writeData1, O, X, I) -- 0,5番目を読みだし、書き込む
+      s4 = clockup -- クロックを立ち上げる
+      s5 = (b0, b5, b5, writeData2, O, X, I) -- 0,5番目を読みだし、書き込む
+      s6 = (b0, b5, b5, writeData1, O, X, I) -- 0,5番目を読みだし、書き込む -- (ただクロックの立ち下がりではないため書き込まれない)
+
+
+  print $ embed
+    (resister) -- 使いたいSF
+    (s0, [(0.1, Just e) | e <- [s1, s2, s3, s4, s5, s6]])
+
+    -- 出力
+    -- [(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,11111111111111111111111111111111),(00000000000000000000000000000000,00000000000000000000000000000000),(00000000000000000000000000000000,00000000000000000000000000001011),(00000000000000000000000000000000,00000000000000000000000000001011)]
+
 
 main :: IO ()
-main = testForAdd4bitsAndMem
+main = testForResister
