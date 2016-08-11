@@ -191,13 +191,13 @@ testForResister = do
 
 -- ALU
 alu :: SF (Bits N32, Bits N32, Bits N3) (Bits N32, Bit)
-alu = proc (a, b, aluOp) -> do
+alu = proc (a, b, oper) -> do
   andRes <- and32Bits -< (a, b)
   orRes  <- or32Bits  -< (a, b)
   addRes <- add32Bits -< (a, b)
   subRes <- sub32Bits -< (a, b)
   let ltRes = fillBits O n31 +*+ takeBits n1 subRes
-  res <- mux32In5 -< (andRes, orRes, addRes, subRes, ltRes, aluOp)
+  res <- mux32In5 -< (andRes, orRes, addRes, subRes, ltRes, oper)
   let zeroFlag = if res == fillBits O n32 then I else O
   returnA -< (res, zeroFlag)
 
@@ -235,5 +235,95 @@ testForAlu = do
   -- 出力
   -- [00000000000000000000000000001010,00000000000000000000000000000001,00000000000000000000000000000101,11111111111111111111111111111100,00000000000000000000000000000001,00000000000000000000000000000000]
 
+mainControl :: SF (Bits N6) (Bit, Bit, Bit, Bit, Bits N2, Bit, Bit, Bit)
+mainControl = arr mainControlFunc
+  where
+    mainControlFunc :: Bits N6 -> (Bit, Bit, Bit, Bit, Bits N2, Bit, Bit, Bit)
+    -- R-format
+    mainControlFunc (O:*O:*O:*O:*O:*O:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = I
+            aluSrc   = O
+            memtoReg = O
+            regWrite = I
+            memRead  = O
+            memWrite = O
+            branch   = O
+            aluOp    = I:*O:*End
+
+    -- lw
+    mainControlFunc (I:*O:*O:*O:*I:*I:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = O
+            aluSrc   = I
+            memtoReg = I
+            regWrite = I
+            memRead  = I
+            memWrite = O
+            branch   = O
+            aluOp    = O:*O:*End
+
+    -- sw
+    mainControlFunc (I:*O:*I:*O:*I:*I:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = I
+            aluSrc   = I
+            memtoReg = I
+            regWrite = O
+            memRead  = O
+            memWrite = I
+            branch   = O
+            aluOp    = O:*O:*End
+    -- beq
+    mainControlFunc (O:*O:*O:*I:*O:*O:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = I
+            aluSrc   = O
+            memtoReg = I
+            regWrite = O
+            memRead  = O
+            memWrite = O
+            branch   = I
+            aluOp    = O:*I:*End
+
+    -- addi
+    mainControlFunc (O:*O:*I:*O:*O:*O:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = O
+            aluSrc   = I
+            memtoReg = O
+            regWrite = I
+            memRead  = O
+            memWrite = O
+            branch   = O
+            aluOp    = I:*I:*End
+
+    -- andi
+    mainControlFunc (O:*O:*I:*I:*O:*O:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = O
+            aluSrc   = I
+            memtoReg = O
+            regWrite = I
+            memRead  = O
+            memWrite = O
+            branch   = O
+            aluOp    = I:*I:*End
+
+    -- ori
+    mainControlFunc (O:*O:*I:*I:*O:*I:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = O
+            aluSrc   = I
+            memtoReg = O
+            regWrite = I
+            memRead  = O
+            memWrite = O
+            branch   = O
+            aluOp    = I:*I:*End
+
+    -- set less than immediate
+    mainControlFunc (O:*O:*I:*O:*I:*O:*End) = (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite)
+      where regDest  = O
+            aluSrc   = I
+            memtoReg = O
+            regWrite = I
+            memRead  = O
+            memWrite = O
+            branch   = O
+            aluOp    = I:*I:*End
 main :: IO ()
 main = testForAlu
