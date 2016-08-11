@@ -11,6 +11,8 @@ import           Bit
 import           Control.Concurrent
 import           Data.IORef
 import           Data.Maybe
+import           Debug.Trace
+import           DebugSF
 import           DelayedSF
 import           FRP.Yampa
 import           Natural
@@ -138,10 +140,16 @@ goOnRight :: Event a -> Event b -> Event b
 goOnRight NoEvent _ = NoEvent
 goOnRight _       r = r
 
+
 -- Resister
+resister :: SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
+resister = resisterInit (replicate 32 (fillBits O n32))
+
+-- Resister with initialization
 -- TODO クリアでの挙動を実装していない
-resister :: SF (Bits N4, Bits N4, Bits N4, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
-resister = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag) -> do
+-- TODO initをただのリストではなく長さ付きのリストにする（より型安全に）
+resisterInit :: [Bits N32] -> SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
+resisterInit init = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag) -> do
   -- negative edge for clock
   negClkEv <- edge -< clk == O
   let
@@ -152,7 +160,7 @@ resister = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag
               else NoEvent
     storeEv = negClkEv `goOnRight` writeEv
   -- Get stored data
-  stored <- accumHold (replicate 32 (fillBits O n32)) -< storeEv
+  stored <- accumHold init -< storeEv
   -- Read Addresses to Indexies
   let read1Idx = fromMaybe 0 (bitsToIntMaybe readAddr1)
       read2Idx = fromMaybe 0 (bitsToIntMaybe readAddr2)
@@ -163,10 +171,10 @@ resister = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag
 -- レジスタのテスト
 testForResister = do
   let
-      -- 4bitの0, 1
-      b0 = fillBits O n4
-      b1 = O:*O:*O:*I:*End
-      b5 = O:*I:*O:*I:*End
+      -- 5bitの0, 1
+      b0 = fillBits O n5
+      b1 = O:*O:*O:*O:*I:*End
+      b5 = O:*O:*I:*O:*I:*End
 
       -- 書き込み使うデータ(32bitすべてで全部Iが詰まってるものと11)
       writeData1 = fillBits I n32
@@ -210,6 +218,21 @@ mux32In5 = proc (ooo, ooi, oio, iio, iii, d) -> do
     I:*I:*O:*End -> iio
     I:*I:*I:*End -> iii
     _            -> ooo
+
+-- Multiplexer (1 in 2, output is 32bits)
+mux32In2 :: SF (Bits N32, Bits N32, Bit) (Bits N32)
+mux32In2 = proc (o, i, d) -> do
+  returnA -< case d of
+    I -> i
+    _ -> o
+
+
+-- Multiplexer (1 in 2, output is 5bits)
+mux5In2 :: SF (Bits N5, Bits N5, Bit) (Bits N5)
+mux5In2 = proc (o, i, d) -> do
+  returnA -< case d of
+    I -> i
+    _ -> o
 
 -- ALUのテスト
 testForAlu :: IO ()
@@ -332,7 +355,7 @@ aluControl :: SF (Bits N6, Bits N6, Bits N2) (Bits N3)
 aluControl = arr aluControlFunc
  where
   aluControlFunc :: (Bits N6, Bits N6, Bits N2) -> Bits N3
-  aluControlFunc (opcode, funct, aluOp) = case aluOp of
+  aluControlFunc (op, funct, aluOp) = case aluOp of
       O:*O:*End -> cAdd -- addition for lw or sw
       O:*I:*End -> cSub -- substraction for beq
       -- R-format
@@ -343,7 +366,7 @@ aluControl = arr aluControlFunc
         I:*O:*O:*I:*O:*I:*End -> cOr
         I:*O:*I:*O:*I:*O:*End -> cLt
       -- immediate
-      I:*I:*End -> case opcode of
+      I:*I:*End -> case op of
         O:*O:*I:*O:*O:*O:*End -> cAdd
         O:*O:*I:*I:*O:*O:*End -> cAnd
         O:*O:*I:*I:*O:*I:*End -> cOr
@@ -361,5 +384,51 @@ signExt = arr signExtFunc
   where signExtFunc :: Bits N16 -> Bits N32
         signExtFunc din = fillBits (headBits din) n16 +*+ din
 
+-- Testing for Instraction to ALU Result
+-- 32bit命令からALUの結果までのテスト
+testExecSF :: [Bits N32] -> SF (Bits N32) (Bits N32)
+testExecSF regiInit = proc inst -> do
+
+  -- Instraction devided by each meaning
+  let op     = range n31 n26 inst
+      rs     = range n25 n21 inst
+      rt     = range n20 n16 inst
+      rd     = range n15 n11 inst
+      shamt  = range n10 n6  inst
+      funct  = range n5  n0  inst
+      offset = range n15 n0  inst
+
+  -- Main Control
+  (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite) <- mainControl -< op
+
+  -- Resigister
+  writeAddr <- mux5In2 -< (rt, rd, regDest) -- Write Address
+  (read1, read2) <- resisterInit regiInit -< (rs, rt, writeAddr, fillBits O n32, O, O, O)
+
+  -- ALU
+  immediate             <- signExt    -< offset
+  aluB                  <- mux32In2   -< (read2, immediate, aluSrc)
+  oper                  <- aluControl -< (op, funct, aluOp)
+  (aluResult, zeroFlag) <- alu        -< (read1, aluB, oper)
+
+  returnA -< aluResult
+
+-- 命令からALUまでのテスト
+testForExecSF :: IO ()
+testForExecSF = do
+  let iAddi    = O:*O:*I:*O:*O:*O:*End :: Bits N6
+      iOri     = O:*O:*I:*I:*O:*I:*End :: Bits N6
+      regiInit = (replicate 32 (fillBits O n32))
+
+      -- $0 = $0 + 4
+      inst1 = iAddi +*+ (fillBits O n5) +*+ (fillBits O n5) +*+ (fillBits O n13 +*+ (I:*O:*O:*End)) :: Bits N32
+      -- $0 = $0 or 11
+      inst2 = iOri  +*+ (fillBits O n5) +*+ (fillBits O n5) +*+ (fillBits O n12 +*+ (I:*O:*I:*I:*End)) :: Bits N32
+  print $ embed
+    (testExecSF regiInit) -- 使いたいSF
+    (inst1, [(0.1, Just e) | e <- [inst2]])
+
+  return ()
+
 main :: IO ()
-main = testForAlu
+main = testForExecSF
