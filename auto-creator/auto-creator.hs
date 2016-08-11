@@ -33,6 +33,10 @@ main = do
         printf "(c%d, s%d) <- fullAdder -< (a%d, b%d, c%d)\n" i i i i (i-1)
       putStrLn ""
 
+      forM_ [1..n-1] $ \i -> do
+        printf "(c%d, s%d) <- fullAdder -< (a%d, inv b%d, c%d)\n" i i i i (i-1)
+      putStrLn ""
+
       forM_ [n-1, n-2..0] $ \i -> printf "s%d:*" i
       putStrLn "End"
       -- s3:*s2:*s1:*s0:*End
