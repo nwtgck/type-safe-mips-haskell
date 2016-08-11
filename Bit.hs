@@ -13,6 +13,7 @@ module Bit(
   dropBits,
   takeBits,
   headBits,
+  (+*+),
   foldlBits,
   foldrBits,
   foldlMaybeBits,
@@ -83,6 +84,11 @@ takeBits (SSucc n) (b:*bs)  = b :* (takeBits n bs)
 
 headBits :: Bits (Succ n) -> Bit
 headBits (b:*bs) = b
+
+-- append bits
+(+*+) :: Bits n -> Bits m -> Bits (n+m)
+End     +*+ bs = bs
+(x:*xs) +*+ bs = x :* (xs +*+ bs)
 
 -- fold left for Bits
 foldlBits :: (a -> Bit -> a) -> a -> Bits n -> a
