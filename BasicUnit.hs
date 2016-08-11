@@ -19,7 +19,8 @@ module BasicUnit(
   and4Bits,
   or4Bits,
   lt4Bits,
-  add32Bits
+  add32Bits,
+  sub32Bits
 ) where
 
 
@@ -130,6 +131,44 @@ sub4Bits = proc (bitsToList -> [a3,a2,a1,a0], bitsToList -> [b3,b2,b1,b0]) -> do
   (c2, s2) <- fullAdder -< (a2, inv b2, c1)
   (c3, s3) <- fullAdder -< (a3, inv b3, c2)
   returnA -< s3:*s2:*s1:*s0:*End
+
+-- 32bit Substractor
+sub32Bits :: SF (Bits N32, Bits N32) (Bits N32)
+sub32Bits = proc (bitsToList -> [a31,a30,a29,a28,a27,a26,a25,a24,a23,a22,a21,a20,a19,a18,a17,a16,a15,a14,a13,a12,a11,a10,a9,a8,a7,a6,a5,a4,a3,a2,a1,a0], bitsToList -> [b31,b30,b29,b28,b27,b26,b25,b24,b23,b22,b21,b20,b19,b18,b17,b16,b15,b14,b13,b12,b11,b10,b9,b8,b7,b6,b5,b4,b3,b2,b1,b0]) -> do
+  (c0, s0) <- fullAdder -< (a0, inv b0, I)
+  (c1, s1)   <- fullAdder -< (a1, inv b1, c0)
+  (c2, s2)   <- fullAdder -< (a2, inv b2, c1)
+  (c3, s3)   <- fullAdder -< (a3, inv b3, c2)
+  (c4, s4)   <- fullAdder -< (a4, inv b4, c3)
+  (c5, s5)   <- fullAdder -< (a5, inv b5, c4)
+  (c6, s6)   <- fullAdder -< (a6, inv b6, c5)
+  (c7, s7)   <- fullAdder -< (a7, inv b7, c6)
+  (c8, s8)   <- fullAdder -< (a8, inv b8, c7)
+  (c9, s9)   <- fullAdder -< (a9, inv b9, c8)
+  (c10, s10) <- fullAdder -< (a10, inv b10, c9)
+  (c11, s11) <- fullAdder -< (a11, inv b11, c10)
+  (c12, s12) <- fullAdder -< (a12, inv b12, c11)
+  (c13, s13) <- fullAdder -< (a13, inv b13, c12)
+  (c14, s14) <- fullAdder -< (a14, inv b14, c13)
+  (c15, s15) <- fullAdder -< (a15, inv b15, c14)
+  (c16, s16) <- fullAdder -< (a16, inv b16, c15)
+  (c17, s17) <- fullAdder -< (a17, inv b17, c16)
+  (c18, s18) <- fullAdder -< (a18, inv b18, c17)
+  (c19, s19) <- fullAdder -< (a19, inv b19, c18)
+  (c20, s20) <- fullAdder -< (a20, inv b20, c19)
+  (c21, s21) <- fullAdder -< (a21, inv b21, c20)
+  (c22, s22) <- fullAdder -< (a22, inv b22, c21)
+  (c23, s23) <- fullAdder -< (a23, inv b23, c22)
+  (c24, s24) <- fullAdder -< (a24, inv b24, c23)
+  (c25, s25) <- fullAdder -< (a25, inv b25, c24)
+  (c26, s26) <- fullAdder -< (a26, inv b26, c25)
+  (c27, s27) <- fullAdder -< (a27, inv b27, c26)
+  (c28, s28) <- fullAdder -< (a28, inv b28, c27)
+  (c29, s29) <- fullAdder -< (a29, inv b29, c28)
+  (c30, s30) <- fullAdder -< (a30, inv b30, c29)
+  (c31, s31) <- fullAdder -< (a31, inv b31, c30)
+  returnA -< s31:*s30:*s29:*s28:*s27:*s26:*s25:*s24:*s23:*s22:*s21:*s20:*s19:*s18:*s17:*s16:*s15:*s14:*s13:*s12:*s11:*s10:*s9:*s8:*s7:*s6:*s5:*s4:*s3:*s2:*s1:*s0:*End
+
 
 -- AND - 4 Bits
 and4Bits :: SF (Bits N4, Bits N4) (Bits N4)

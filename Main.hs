@@ -41,11 +41,26 @@ testForAdd32bits = do
      one  = O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*I:*End
  reactimate (return (zero, zero))
               (\_ -> do
-                threadDelay 80000
+                -- threadDelay 80000
                 out <- readIORef prevOut
                 return (0.1, (Just $ (out, one) )))
               (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
               (add32Bits)
+
+-- Test for 32 bits sub
+testForSub32bits = do
+ prevOut <- newIORef (undefined :: Bits N32)
+ let
+     zero = fillBits O n32
+     maxB = fillBits I n32
+     one  = O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*O:*I:*End
+ reactimate (return (maxB, zero))
+              (\_ -> do
+                -- threadDelay 80000
+                out <- readIORef prevOut
+                return (0.1, (Just $ (out, one) )))
+              (\_ out -> print (out, bitsToIntMaybe out) >> writeIORef prevOut out >> return False)
+              (sub32Bits)
 
 -- Test for 4 bits sub
 testForSub4bits = do
@@ -186,4 +201,4 @@ testForResister = do
 --         (O:*O:*O:*End) -> add4Bits
 
 main :: IO ()
-main = testForAdd32bits
+main = testForSub32bits
