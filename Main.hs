@@ -355,6 +355,11 @@ aluControl = arr aluControlFunc
       cOr  = O:*O:*I:*End
       cLt  = I:*I:*I:*End
 
+-- Sign Extension
+signExt :: SF (Bits N16) (Bits N32)
+signExt = arr signExtFunc
+  where signExtFunc :: Bits N16 -> Bits N32
+        signExtFunc din = fillBits (headBits din) n16 +*+ din
 
 main :: IO ()
 main = testForAlu
