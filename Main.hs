@@ -19,45 +19,6 @@ import           Natural
 import           Text.Printf
 import           Unsafe.Coerce
 
--- メモリとしての機能を果たすか作ってみて確かめる
-memTest :: SF (Bits N4, Bit) (Bits N4)
-memTest = proc (input, writeFlag) -> do
-  output <- dHold (fillBits O n4) -< if writeFlag == I then Event input else NoEvent
-  returnA -<  output
-
-
--- Test for 4 bits adder and Memory
-testForAdd4bitsAndMem = do
- let zero = O:*O:*O:*O:*End
-     one  = O:*O:*O:*I:*End
-     mainSF :: SF Bit (Bits N4)
-     mainSF = proc writeFlag -> do
-      rec
-        memData <- memTest  -< (added, writeFlag)
-        added   <- add4Bits -< (memData, one)
-      returnA -< added
-
- reactimate (return O)
-            (\_ -> threadDelay 100000 >> return (0.1, Just I))
-            (\_ out -> print (out, bitsToIntMaybe out) >> return False)
-            (mainSF)
-
--- Test for delayed 4 bits adder and Memory
-testForDelayAdd4bitsAndMem = do
- let zero = O:*O:*O:*O:*End
-     one  = O:*O:*O:*I:*End
-     mainSF :: SF Bit (Bits N4)
-     mainSF = proc writeFlag -> do
-      rec
-        memData  <- memTest  -< (out, writeFlag)
-        out    <- delayedSF 0.5 (unknowns n4) add4Bits -< (memData, one)
-      returnA -< out
-
- reactimate (return O)
-            (\_ -> threadDelay 100000 >> return (0.1, Just I))
-            (\_ out -> print (out, bitsToIntMaybe out) >> return False)
-            (mainSF)
-
 -- Update a List by specific index
 listUpdate :: [a] -> Int -> a -> [a]
 listUpdate []     _   _ = error "Can't update list"
@@ -71,15 +32,15 @@ goOnRight NoEvent _ = NoEvent
 goOnRight _       r = r
 
 
--- Resister
-resister :: SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
-resister = resisterInit (replicate 32 (fillBits O n32))
+-- Register
+register :: SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
+register = registerInit (replicate 32 (fillBits O n32))
 
--- Resister with initialization
+-- Register with initialization
 -- TODO クリアでの挙動を実装していない
 -- TODO initをただのリストではなく長さ付きのリストにする（より型安全に）
-resisterInit :: [Bits N32] -> SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
-resisterInit init = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag) -> do
+registerInit :: [Bits N32] -> SF (Bits N5, Bits N5, Bits N5, Bits N32, Bit, Bit, Bit) (Bits N32, Bits N32)
+registerInit init = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, writeFlag) -> do
   -- negative edge for clock
   negClkEv <- edge -< clk == O
   let
@@ -99,7 +60,7 @@ resisterInit init = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, 
 
 
 -- レジスタのテスト
-testForResister = do
+testForRegister = do
   let
       -- 5bitの0, 1
       b0 = fillBits O n5
@@ -121,7 +82,7 @@ testForResister = do
 
 
   print $ embed
-    (resister) -- 使いたいSF
+    (register) -- 使いたいSF
     (s0, [(0.1, Just e) | e <- [s1, s2, s3, s4, s5, s6]])
 
     -- 出力
@@ -365,7 +326,7 @@ testExecSF regiInit = proc inst -> do
 
   -- Resigister
   writeAddr <- mux5In2 -< (rt, rd, regDest) -- Write Address
-  (read1, read2) <- resisterInit regiInit -< (rs, rt, writeAddr, fillBits O n32, O, O, O)
+  (read1, read2) <- registerInit regiInit -< (rs, rt, writeAddr, fillBits O n32, O, O, O)
 
   -- ALU
   immediate             <- signExt    -< offset
@@ -434,7 +395,7 @@ mips memInit = proc clk -> do
 
     -- Resigister
     writeAddr <- mux5In2 -< (rt, rd, regDest) -- Write Address
-    (read1, read2) <- resister -< (rs, rt, writeAddr, writeData, clk, O, regWrite)
+    (read1, read2) <- register -< (rs, rt, writeAddr, writeData, clk, O, regWrite)
 
     -- ALU
     immediate             <- signExt    -< offset
