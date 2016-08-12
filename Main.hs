@@ -650,11 +650,11 @@ mipsTest3 = do
     -- 1 ~ $3までの総和の計算（最終結果は$1に入り、memoryに書き込まれる）
 
     -- 0: $1 = 0
-    i1 = iAddi +*+ b0 +*+ b1 +*+ (intToBits 0 n16) :: Bits N32
+    i1 = iOri +*+ b0 +*+ b1 +*+ (intToBits 0 n16) :: Bits N32
     -- 4: $2 = 1
-    i2 = iAddi +*+ b0 +*+ b2 +*+ (intToBits 1 n16) :: Bits N32
+    i2 = iOri +*+ b0 +*+ b2 +*+ (intToBits 1 n16) :: Bits N32
     -- 8: $3 = 10
-    i3 = iAddi +*+ b0 +*+ b3 +*+ (intToBits 10 n16) :: Bits N32
+    i3 = iOri +*+ b0 +*+ b3 +*+ (intToBits 10 n16) :: Bits N32
     -- 12: add $1 $1 $2
     i4 = iRFormat +*+ b1 +*+ b2 +*+ b1 +*+ b0 +*+ addFunct :: Bits N32
     -- 16: addi $2 $2 1
