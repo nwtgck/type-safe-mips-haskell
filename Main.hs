@@ -15,6 +15,8 @@ import           Natural
 import           Text.Printf
 import           Unsafe.Coerce
 
+main :: IO ()
+main = mipsTest3
 
 -- MIPS
 mips :: [Bits N32] -> SF (Bit) (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32)
@@ -220,6 +222,3 @@ mipsTest3 = do
   mapM_ (printFunc) $ embed
     (mips [i1, i2, i3, i4, i5, i6, i7, i8, foreverWait]) -- 使いたいSF
     (O, [(0.1, Just e) | e <- clocks])
-
-main :: IO ()
-main = mipsTest3

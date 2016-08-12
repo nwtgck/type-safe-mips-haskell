@@ -3,7 +3,7 @@ module Util(
   goOnRight
 ) where
 
-import FRP.Yampa
+import           FRP.Yampa
 
 -- Update a List by specific index
 listUpdate :: [a] -> Int -> a -> [a]
