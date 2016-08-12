@@ -17,6 +17,7 @@ import           DelayedSF
 import           FRP.Yampa
 import           Natural
 import           Text.Printf
+import           Unsafe.Coerce
 
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
@@ -161,7 +162,7 @@ resisterInit init = proc (readAddr1, readAddr2, writeAddr, writeData, clk, clr, 
               else NoEvent
     storeEv = negClkEv `goOnRight` writeEv
   -- Get stored data
-  stored <- accumHold init -< storeEv
+  stored <- dAccumHold init -< storeEv
   -- Read Addresses to Indexies
   let read1Idx = fromMaybe 0 (bitsToIntMaybe readAddr1)
       read2Idx = fromMaybe 0 (bitsToIntMaybe readAddr2)
@@ -619,6 +620,72 @@ mipsTest2 = do
     (mips [i1, i2, i3, i4, i5, i6, foreverWait]) -- 使いたいSF
     (O, [(0.1, Just e) | e <- clocks])
 
+-- Integer to Bits
+-- TODO 負の数にも対応する
+intToBits :: Int -> SNat n -> Bits n
+intToBits _ SN0       = End
+-- TODO unsafeCoerceを使わずに証明する
+intToBits i (SSucc n) = unsafeCoerce $ (intToBits (i `div` 2) n) +*+ ((if i `mod` 2 == 0 then O else I):*End)
+
+-- 1 ~ $3までの総和の計算（最終結果は$1に入り、memoryに書き込まれる）
+mipsTest3 :: IO ()
+mipsTest3 = do
+  let
+    iRFormat = O:*O:*O:*O:*O:*O:*End :: Bits N6
+    iAddi    = O:*O:*I:*O:*O:*O:*End :: Bits N6
+    iOri     = O:*O:*I:*I:*O:*I:*End :: Bits N6
+    iLw      = I:*O:*O:*O:*I:*I:*End
+    iSw      = I:*O:*I:*O:*I:*I:*End
+    iBeq     = O:*O:*O:*I:*O:*O:*End
+    addFunct = I:*O:*O:*O:*O:*O:*End
+    subFunct = I:*O:*O:*O:*I:*O:*End
+    sltFunct = I:*O:*I:*O:*I:*O:*End
+
+    b0 = (O:*O:*O:*O:*O:*End)
+    b1 = (O:*O:*O:*O:*I:*End)
+    b2 = (O:*O:*O:*I:*O:*End)
+    b3 = (O:*O:*O:*I:*I:*End)
+    b4 = (O:*O:*I:*O:*O:*End)
+
+    -- 1 ~ $3までの総和の計算（最終結果は$1に入り、memoryに書き込まれる）
+
+    -- 0: $1 = 0
+    i1 = iAddi +*+ b0 +*+ b1 +*+ (intToBits 0 n16) :: Bits N32
+    -- 4: $2 = 1
+    i2 = iAddi +*+ b0 +*+ b2 +*+ (intToBits 1 n16) :: Bits N32
+    -- 8: $3 = 10
+    i3 = iAddi +*+ b0 +*+ b3 +*+ (intToBits 10 n16) :: Bits N32
+    -- 12: add $1 $1 $2
+    i4 = iRFormat +*+ b1 +*+ b2 +*+ b1 +*+ b0 +*+ addFunct :: Bits N32
+    -- 16: addi $2 $2 1
+    i5 = iAddi +*+ b2 +*+ b2 +*+ (intToBits 1 n16) :: Bits N32
+    -- 20:slt $4 $3 $2
+    i6 = iRFormat +*+ b3 +*+ b2 +*+ b4 +*+ b0 +*+ sltFunct :: Bits N32
+    -- 24:beq $4 $0 (-4d)
+    i7 = iBeq +*+ b4 +*+ b0 +*+ (fillBits I n13 +*+ (I:*O:*O:*End)) :: Bits N32
+    -- 28:sw $4 h0004($0)
+    i8 = iSw +*+ b0 +*+ b1 +*+ (fillBits O n16) :: Bits N32
+
+
+    -- PCを固定し、終了させないようにする命令
+    foreverWait = iBeq +*+ b0 +*+ b0 +*+ (fillBits I n16)
+    clocks = cycle [O, O, I, I]
+
+    printFunc :: (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32) -> IO ()
+    printFunc (pc, allMemory, writeData, inst, aluResult) = do
+      printf "pc: %s, " (show $ bitsToIntMaybe pc)
+      printf "memory[0]: %s, " (show (bitsToIntMaybe $ allMemory !! 0)) -- メモリ0（$4(総和)の結果をメモリに入れたもの)
+      -- printf "memory[1]: %s, " (show (allMemory !! 1)) -- メモリ1（$4の結果をメモリに入れたもの）
+      printf "inst: %s, " (show inst)
+      -- 長くなりすぎるのコメントアウトしてる
+      printf "writeData: %s, " (show writeData)
+      -- printf "aluResult: %s, " (show aluResult)
+      putStrLn ""
+      threadDelay 10000
+
+  mapM_ (printFunc) $ embed
+    (mips [i1, i2, i3, i4, i5, i6, i7, i8, foreverWait]) -- 使いたいSF
+    (O, [(0.1, Just e) | e <- clocks])
 
 main :: IO ()
-main = mipsTest2
+main = mipsTest3
