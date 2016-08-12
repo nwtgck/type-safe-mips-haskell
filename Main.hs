@@ -16,6 +16,7 @@ import           DebugSF
 import           DelayedSF
 import           FRP.Yampa
 import           Natural
+import           Text.Printf
 
 -- メモリとしての機能を果たすか作ってみて確かめる
 memTest :: SF (Bits N4, Bit) (Bits N4)
@@ -384,6 +385,38 @@ signExt = arr signExtFunc
   where signExtFunc :: Bits N16 -> Bits N32
         signExtFunc din = fillBits (headBits din) n16 +*+ din
 
+-- Shift left 2 (x4)
+shiftLeft2 :: SF (Bits N32) (Bits N32)
+shiftLeft2 = arr shiftLeft2Func
+  where shiftLeft2Func :: Bits N32 -> Bits N32
+        shiftLeft2Func din = dropBits n2 din +*+ (O:*O:*End)
+
+-- Instraction Memory
+iMem :: [Bits N32] -> SF (Bits N32) (Bits N32)
+iMem init = proc addr -> do
+  -- address to index
+  let idx = fromMaybe 0 (bitsToIntMaybe (dropBits n16 addr))
+  returnA -< (init !! (idx `div` 4))
+
+-- Data Memory
+dataMem :: SF (Bits N32, Bits N32, Bit, Bit, Bit) (Bits N32, [Bits N32])
+dataMem = proc (addr, writeData, memWrite, memRead, clk) -> do
+  negClk <- edge -< clk == O
+  let index = fromMaybe 0 (bitsToIntMaybe addr)
+      a = if memWrite == I then Event (\st -> listUpdate st (index `div` 4) writeData) else NoEvent
+  stored <- dAccumHold (replicate 65535 (fillBits O n32)) -< negClk `goOnRight` a
+  returnA -< (if memRead == I then stored !! (index `div` 4) else fillBits X n32, stored)
+
+-- Program Counter
+-- TODO クリアの実装
+-- TODO クロックが立ち下がり瞬間は古いPCが出力される（対処できるのか？しなくてもいいかの？）
+progCounter :: SF (Bits N32, Bit, Bit) (Bits N32)
+progCounter = proc (nextPc, clk, clr) -> do
+  -- Negative edge Clock
+  negClk <- edge -< clk == O
+  nowPc  <- dHold (fillBits O n32) -< negClk `tag` nextPc
+  returnA -< nowPc
+
 -- Testing for Instraction to ALU Result
 -- 32bit命令からALUの結果までのテスト
 testExecSF :: [Bits N32] -> SF (Bits N32) (Bits N32)
@@ -430,5 +463,162 @@ testForExecSF = do
 
   return ()
 
+-- PCのテスト
+testForPc :: IO ()
+testForPc = do
+  let
+    b4 = fillBits O n29 +*+ (I:*O:*O:*End) :: Bits N32
+    sf :: SF Bit (Bits N32)
+    sf = proc clk -> do
+      rec
+        pc     <- progCounter -< (nextPc, clk, O)
+        nextPc <- add32Bits -< (pc, b4)
+      returnA -< pc
+    clocks = cycle [O, O, I, I]
+
+  mapM_ (print . bitsToIntMaybe) $ embed
+    (sf) -- 使いたいSF
+    (O, [(0.1, Just e) | e <- clocks])
+  return ()
+
+-- MIPS
+mips :: [Bits N32] -> SF (Bit) (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32)
+mips memInit = proc clk -> do
+  rec
+    -- Program Counter
+    pc <- progCounter -< (nextPc, clk, O)
+
+    -- Get Instraction
+    inst <- iMem memInit -< pc
+
+    -- Instraction devided by each meaning
+    let op     = range n31 n26 inst
+        rs     = range n25 n21 inst
+        rt     = range n20 n16 inst
+        rd     = range n15 n11 inst
+        shamt  = range n10 n6  inst
+        funct  = range n5  n0  inst
+        offset = range n15 n0  inst
+
+    -- Main Control
+    (regDest, branch, memRead, memtoReg, aluOp, memWrite, aluSrc, regWrite) <- mainControl -< op
+
+    -- Resigister
+    writeAddr <- mux5In2 -< (rt, rd, regDest) -- Write Address
+    (read1, read2) <- resister -< (rs, rt, writeAddr, writeData, clk, O, regWrite)
+
+    -- ALU
+    immediate             <- signExt    -< offset
+    aluB                  <- mux32In2   -< (read2, immediate, aluSrc)
+    oper                  <- aluControl -< (op, funct, aluOp)
+    (aluResult, zeroFlag) <- alu        -< (read1, aluB, oper)
+
+    -- Data Memory
+    (memData, allMemory) <- dataMem -< (aluResult, read2, memWrite, memRead, clk)
+
+    -- Register Write Data
+    writeData <- mux32In2 -< (aluResult, memData, memtoReg)
+
+    -- Decide Branched PC
+    plus4Pc        <- add32Bits  -< (pc, fillBits O n29 +*+ (I:*O:*O:*End))
+    shiftedOffset  <- shiftLeft2 -< immediate
+    branchedPc     <- add32Bits -< (plus4Pc, shiftedOffset)
+
+    -- Decide next PC
+    pcSrc  <- andGate  -< (branch, zeroFlag)
+    nextPc <- mux32In2 -< (plus4Pc, branchedPc, pcSrc)
+
+  returnA -< (pc, allMemory, writeData, inst, aluResult)
+
+-- MIPSのテスト
+mipsTest :: IO ()
+mipsTest = do
+  let
+    iAddi = O:*O:*I:*O:*O:*O:*End :: Bits N6
+    iOri  = O:*O:*I:*I:*O:*I:*End :: Bits N6
+    iLw   = I:*O:*O:*O:*I:*I:*End
+    iSw   = I:*O:*I:*O:*I:*I:*End
+    iBeq  = O:*O:*O:*I:*O:*O:*End
+    f     = I:*I:*I:*I:*End
+    a     = I:*O:*I:*O:*End
+
+    b4 = (O:*O:*I:*O:*O:*End)
+    -- $4 = 2
+    i1 = iAddi +*+ (fillBits O n5) +*+ b4 +*+ (fillBits O n14 +*+ (I:*O:*End)) :: Bits N32
+    -- sw $4 h0000($0)
+    i2 = iSw +*+ (fillBits O n5) +*+ b4 +*+ (fillBits O n16)
+
+    -- PCを固定し、終了させないようにする命令
+    foreverWait = iBeq +*+ (fillBits O n5) +*+ (fillBits O n5) +*+ (fillBits I n16)
+    clocks = cycle [O, O, I, I]
+
+    printFunc :: (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32) -> IO ()
+    printFunc (pc, allMemory, writeData, inst, aluResult) = do
+      printf "pc: %s, " (show $ bitsToIntMaybe pc)
+      printf "memory[0]: %s, " (show (allMemory !! 0)) -- メモリの先頭だけを読み取る（計算結果を入れるつもり）
+      printf "writeData: %s, " (show writeData)
+      printf "inst: %s, " (show inst)
+      printf "aluResult: %s\n" (show aluResult)
+      threadDelay 100000
+
+  mapM_ (printFunc) $ embed
+    (mips [i1, i2, foreverWait]) -- 使いたいSF
+    (O, [(0.1, Just e) | e <- clocks])
+
+
+
+-- MIPSのテスト2
+mipsTest2 :: IO ()
+mipsTest2 = do
+  let
+    iRFormat = O:*O:*O:*O:*O:*O:*End :: Bits N6
+    iAddi    = O:*O:*I:*O:*O:*O:*End :: Bits N6
+    iOri     = O:*O:*I:*I:*O:*I:*End :: Bits N6
+    iLw      = I:*O:*O:*O:*I:*I:*End
+    iSw      = I:*O:*I:*O:*I:*I:*End
+    iBeq     = O:*O:*O:*I:*O:*O:*End
+    addFunct = I:*O:*O:*O:*O:*O:*End
+    subFunct = I:*O:*O:*O:*I:*O:*End
+
+    b0 = (O:*O:*O:*O:*O:*End)
+    b1 = (O:*O:*O:*O:*I:*End)
+    b2 = (O:*O:*O:*I:*O:*End)
+    b3 = (O:*O:*O:*I:*I:*End)
+    b4 = (O:*O:*I:*O:*O:*End)
+    -- $1 = 2
+    i1 = iAddi +*+ (fillBits O n5) +*+ b1 +*+ (fillBits O n14 +*+ (I:*O:*End)) :: Bits N32
+    -- $2 = 3
+    i2 = iAddi +*+ (fillBits O n5) +*+ b2 +*+ (fillBits O n14 +*+ (I:*I:*End)) :: Bits N32
+    -- $3 = $1 + $2
+    i3 = iRFormat +*+ b1 +*+ b2 +*+ b3 +*+ b0 +*+ addFunct :: Bits N32
+    -- $4 = $2 - $1
+    i4 = iRFormat +*+ b2 +*+ b1 +*+ b4 +*+ b0 +*+ subFunct :: Bits N32
+
+    -- sw $4 h0000($0)
+    i5 = iSw +*+ (fillBits O n5) +*+ b3 +*+ (fillBits O n16)
+    -- sw $4 h0004($0)
+    i6 = iSw +*+ (fillBits O n5) +*+ b4 +*+ (fillBits O n13 +*+ (I:*O:*O:*End))
+
+    -- PCを固定し、終了させないようにする命令
+    foreverWait = iBeq +*+ (fillBits O n5) +*+ (fillBits O n5) +*+ (fillBits I n16)
+    clocks = cycle [O, O, I, I]
+
+    printFunc :: (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32) -> IO ()
+    printFunc (pc, allMemory, writeData, inst, aluResult) = do
+      printf "pc: %s, " (show $ bitsToIntMaybe pc)
+      printf "memory[0]: %s, " (show (allMemory !! 0)) -- メモリ0（$3の結果をメモリに入れたもの)
+      printf "memory[1]: %s, " (show (allMemory !! 1)) -- メモリ1（$4の結果をメモリに入れたもの）
+      printf "inst: %s, " (show inst)
+      -- 長くなりすぎるのコメントアウトしてる
+      -- printf "writeData: %s, " (show writeData)
+      -- printf "aluResult: %s, " (show aluResult)
+      putStrLn ""
+      threadDelay 100000
+
+  mapM_ (printFunc) $ embed
+    (mips [i1, i2, i3, i4, i5, i6, foreverWait]) -- 使いたいSF
+    (O, [(0.1, Just e) | e <- clocks])
+
+
 main :: IO ()
-main = testForExecSF
+main = mipsTest2
