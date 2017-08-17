@@ -42,13 +42,13 @@ dropBits :: SNat n -> Bits m -> Bits (m - n)
 ### Normal List
 
 ```hs
-let list = []
-head [] -- Compile pass. but "Exception: Prelude.head: empty list"
+let list = [] :: [Bool]
+head list -- Compile pass. but "Exception: Prelude.head: empty list"
 ```
 
 ### `Bits` (type-safe)
 
 ```hs
 let bits = End :: Bits N0 -- similar to []
-headBits End -- Compile Error (GOOD!)
+headBits bits -- Compile Error (GOOD!)
 ```
