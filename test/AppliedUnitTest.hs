@@ -3,6 +3,9 @@
 {-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
 
+module AppliedUnit(
+  main
+) where
 
 import           AppliedUnit
 import           BasicUnit
