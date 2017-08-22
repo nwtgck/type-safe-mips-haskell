@@ -7,7 +7,7 @@ Subset of Virtual MIPS Architecture written in Haskell in Type-Safe way
 
 Here is the whole schematic implemented virtually in Haskell.
 
-<img src="img/schematic.svg"></img>
+<img src="https://rawgit.com/nwtgck/mini-mips-haskell/master/img/schematic.svg"></img>
 
 You can also get detail specification of Main Control and ALU Control from URL bellow.
 
