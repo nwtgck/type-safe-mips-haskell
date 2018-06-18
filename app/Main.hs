@@ -206,7 +206,10 @@ mipsTest3 = do
 
     -- PCを固定し、終了させないようにする命令
     foreverWait = iBeq +*+ b0 +*+ b0 +*+ (fillBits I n16)
-    clocks = cycle [O, O, I, I]
+    -- The number of clocks
+    nClocks = 800
+    -- Generate finite clocks
+    clocks = take nClocks (cycle [O, O, I, I])
 
     printFunc :: (Bits N32, [Bits N32], Bits N32, Bits N32, Bits N32) -> IO ()
     printFunc (pc, allMemory, writeData, inst, aluResult) = do
