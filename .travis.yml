@@ -44,4 +44,4 @@ script:
 # Build
 - stack build
 # Run just working-test
-- stack exec mini-mips-exe
+- stack exec type-safe-mips-exe

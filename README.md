@@ -16,8 +16,8 @@ http://web-ext.u-aizu.ac.jp/~yliu/teaching/comparch/lab4.html
 ## How to run
 
 ```
-$ stack build
-$ stack exec mini-mips-exe
+stack build
+stack exec type-safe-mips-exe
 ```
 
 ## Technologies & Main GHC Pragmas
