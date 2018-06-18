@@ -1,4 +1,5 @@
-#  Mini Virtual MIPS Architecture in Type-Safe way
+#  type-safe-mips
+[![Build Status](https://travis-ci.com/nwtgck/type-safe-mips-haskell.svg?branch=develop)](https://travis-ci.com/nwtgck/type-safe-mips-haskell)
 
 Subset of Virtual MIPS Architecture written in Haskell in Type-Safe way
 
